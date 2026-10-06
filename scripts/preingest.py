@@ -443,7 +443,7 @@ def ingest_corpora(
     return results
 
 
-def ingest_with_retry(operation: Any, attempts: int = 12, delay_seconds: int = 10) -> dict[str, Any]:
+def ingest_with_retry(operation: Any, attempts: int = 30, delay_seconds: int = 10) -> dict[str, Any]:
     for attempt in range(1, attempts + 1):
         try:
             return operation()
