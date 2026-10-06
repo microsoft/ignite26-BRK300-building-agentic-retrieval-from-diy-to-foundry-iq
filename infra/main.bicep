@@ -17,6 +17,9 @@ param location string
 ])
 param searchSku string = 'standard'
 
+@description('Principal that provisions resources and runs ingestion. Passing it explicitly lets azd redeploy role assignments when the deploying identity changes.')
+param principalId string = ''
+
 var tags = {
   'azd-env-name': environmentName
 }
@@ -32,7 +35,7 @@ module resources './resources.bicep' = {
   params: {
     environmentName: environmentName
     location: location
-    principalId: deployer().objectId
+    principalId: empty(principalId) ? deployer().objectId : principalId
     searchSku: searchSku
     tags: tags
   }
