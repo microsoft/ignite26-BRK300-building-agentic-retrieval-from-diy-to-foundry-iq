@@ -15,6 +15,160 @@ services:
     docker:
       path: ./app/backend/Dockerfile
       remoteBuild: true
+  diy-baseline:
+    project: python/diy-baseline
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: diy-baseline
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  diy-query-decomposition:
+    project: python/diy-query-decomposition
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: diy-query-decomposition
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  diy-multi-source-fanout:
+    project: python/diy-multi-source-fanout
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: diy-multi-source-fanout
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  diy-source-selection:
+    project: python/diy-source-selection
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: diy-source-selection
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  diy-llm-reranking:
+    project: python/diy-llm-reranking
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: diy-llm-reranking
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  diy-reflection:
+    project: python/diy-reflection
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: diy-reflection
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  diy-complexity-classifier:
+    project: python/diy-complexity-classifier
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: diy-complexity-classifier
+    protocols:
+      - protocol: responses
+        version: 2.0.0
 hooks:
   postprovision:
     windows:

@@ -107,7 +107,7 @@ class IngestCorpusTests(unittest.TestCase):
     @patch("scripts.preingest.SearchIndexerClient")
     @patch("scripts.preingest.clear_index_documents", return_value=4)
     @patch("scripts.preingest.sync_blob_corpus")
-    def test_ingestion_indexes_both_corpora_before_creating_knowledge_bases(
+    def test_ingestion_indexes_all_corpora_before_creating_knowledge_bases(
         self,
         sync_corpus: Mock,
         clear_documents: Mock,
@@ -139,16 +139,27 @@ class IngestCorpusTests(unittest.TestCase):
         service.create_shared_combined_workspace.assert_called_once()
         self.assertEqual(result["documents"]["indexedItems"], 12)
         self.assertEqual(result["engineeringPractices"]["removedChunks"], 4)
-        self.assertEqual(put_resource.call_count, 6)
-        self.assertEqual(indexer_client_type.return_value.run_indexer.call_count, 2)
-        self.assertEqual(wait.call_count, 2)
+        cocoarynth = [
+            "cocoarynth-origins",
+            "cocoarynth-quality",
+            "cocoarynth-logistics-retail",
+            "cocoarynth-policies",
+        ]
+        self.assertEqual(result["cocoarynth-origins"]["indexedItems"], 12)
+        self.assertEqual(put_resource.call_count, 18)
+        self.assertEqual(indexer_client_type.return_value.run_indexer.call_count, 6)
+        self.assertEqual(wait.call_count, 6)
         self.assertEqual(
             [call.args[0] for call in blob_service.get_container_client.call_args_list],
-            ["knowledge", "engineering-practices"],
+            ["knowledge", "engineering-practices", *cocoarynth],
         )
         self.assertEqual(
             [call.args[1] for call in clear_documents.call_args_list],
-            ["cocoarynth-documents-index", "cocoarynth-engineering-practices-index"],
+            [
+                "cocoarynth-documents-index",
+                "cocoarynth-engineering-practices-index",
+                *[f"{name}-index" for name in cocoarynth],
+            ],
         )
 
     @patch("scripts.preingest.time.sleep")

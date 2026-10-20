@@ -26,6 +26,15 @@ var cognitiveServicesUserRoleId = 'a97b65f3-24c7-4388-baec-2e87135dc908'
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 var storageBlobDataContributorRoleId = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
 var storageBlobDataReaderRoleId = '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
+var cocoarynthCorpora = [
+  'cocoarynth-origins'
+  'cocoarynth-quality'
+  'cocoarynth-logistics-retail'
+  'cocoarynth-policies'
+]
+var cocoarynthContainerNames = flatten(map(cocoarynthCorpora, name => [name, '${name}-images']))
+var azureAiUserRoleId = '53ca6127-db72-4b80-b1b0-d745d6d5456d'
+var azureAiProjectManagerRoleId = 'eadc314b-1a2d-4efa-be10-5d325db5065e'
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: 'log-${resourceToken}'
@@ -131,6 +140,39 @@ resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
       }
     }
   }
+
+  resource project 'projects' = {
+    name: 'proj-${resourceToken}'
+    location: location
+    identity: {
+      type: 'SystemAssigned'
+    }
+    properties: {
+      displayName: 'Agentic retrieval: DIY to Foundry IQ'
+      description: 'Hosted agents for the DIY agentic retrieval steps'
+    }
+    dependsOn: [
+      embedding
+    ]
+  }
+}
+
+resource provisionerAzureAiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: aiAccount::project
+  name: guid(aiAccount::project.id, principalId, azureAiUserRoleId)
+  properties: {
+    principalId: principalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', azureAiUserRoleId)
+  }
+}
+
+resource provisionerAzureAiProjectManager 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: aiAccount::project
+  name: guid(aiAccount::project.id, principalId, azureAiProjectManagerRoleId)
+  properties: {
+    principalId: principalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', azureAiProjectManagerRoleId)
+  }
 }
 
 resource search 'Microsoft.Search/searchServices@2025-05-01' = {
@@ -205,6 +247,13 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-01-01'
       publicAccess: 'None'
     }
   }
+
+  resource cocoarynthContainers 'containers' = [for name in cocoarynthContainerNames: {
+    name: name
+    properties: {
+      publicAccess: 'None'
+    }
+  }]
 }
 
 resource appSearchServiceContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -342,7 +391,7 @@ resource web 'Microsoft.App/containerApps@2024-03-01' = {
               value: appIdentity.properties.clientId
             }
             {
-              name: 'AZURE_SEARCH_ENDPOINT'
+              name: 'FOUNDRY_IQ_SEARCH_ENDPOINT'
               value: 'https://${search.name}.search.windows.net'
             }
             {
@@ -411,6 +460,11 @@ output containerRegistryEndpoint string = registry.properties.loginServer
 output searchEndpoint string = 'https://${search.name}.search.windows.net'
 output openAiEndpoint string = 'https://${aiAccount.name}.openai.azure.com'
 output foundryEndpoint string = 'https://${aiAccount.name}.services.ai.azure.com'
+output aiAccountName string = aiAccount.name
+output aiProjectName string = aiAccount::project.name
+output aiProjectId string = aiAccount::project.id
+output aiProjectEndpoint string = aiAccount::project.properties.endpoints['AI Foundry API']
+output chatDeploymentName string = chatDeployment.name
 output contentUnderstandingDeploymentName string = chatDeployment.name
 output contentUnderstandingModelName string = chatDeployment.model
 output storageAccountName string = storage.name

@@ -1,0 +1,168 @@
+"""DIY agentic retrieval, step 3: query decomposition with parallel searches across every source."""
+
+import asyncio
+import json
+import logging
+import os
+import time
+from typing import Annotated, Any
+
+from agent_framework import Agent, Message, tool
+from agent_framework.foundry import FoundryChatClient
+from agent_framework.openai import OpenAIChatOptions
+from agent_framework_foundry_hosting import ResponsesHostServer
+from azure.identity.aio import AzureDeveloperCliCredential, ManagedIdentityCredential
+from azure.search.documents.aio import SearchClient
+from azure.search.documents.models import QueryType, VectorizableTextQuery
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger("diy-multi-source-fanout")
+
+PROJECT_ENDPOINT = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
+MODEL_DEPLOYMENT_NAME = os.environ["FOUNDRY_MODEL_DEPLOYMENT_NAME"]
+SEARCH_ENDPOINT = os.environ["FOUNDRY_IQ_SEARCH_ENDPOINT"]
+SOURCE_INDEXES = {
+    "origins": "cocoarynth-origins-index",
+    "quality": "cocoarynth-quality-index",
+    "logistics_retail": "cocoarynth-logistics-retail-index",
+    "policies": "cocoarynth-policies-index",
+    "origin_passport_project": "cocoarynth-documents-index",
+    "engineering_practices": "cocoarynth-engineering-practices-index",
+}
+
+credential = (
+    ManagedIdentityCredential()
+    if "FOUNDRY_HOSTING_ENVIRONMENT" in os.environ
+    else AzureDeveloperCliCredential(tenant_id=os.environ["AZURE_TENANT_ID"], process_timeout=60)
+)
+search_clients = {
+    source: SearchClient(endpoint=SEARCH_ENDPOINT, index_name=index_name, credential=credential)
+    for source, index_name in SOURCE_INDEXES.items()
+}
+chat_client = FoundryChatClient(
+    project_endpoint=PROJECT_ENDPOINT,
+    model=MODEL_DEPLOYMENT_NAME,
+    credential=credential,
+)
+
+
+class ActivityLog:
+    """Records each retrieval step with its latency and token usage so the demo can show what happened."""
+
+    def __init__(self) -> None:
+        self.steps: list[dict[str, Any]] = []
+
+    def record(self, step: str, started: float, usage: Any = None, **details: Any) -> None:
+        entry = {"step": step, "elapsed_ms": round((time.perf_counter() - started) * 1000), **details}
+        if usage:
+            entry["model"] = MODEL_DEPLOYMENT_NAME
+            entry["input_tokens"] = usage.get("input_token_count")
+            entry["output_tokens"] = usage.get("output_token_count")
+        self.steps.append(entry)
+        logger.info("%s", json.dumps(entry))
+
+
+async def ask_llm(instructions: str, prompt: str, response_format: type[BaseModel]) -> tuple[Any, Any]:
+    response = await chat_client.get_response(
+        [Message("user", [prompt])],
+        options={"instructions": instructions, "response_format": response_format, "store": False},
+    )
+    return response.value, response.usage_details
+
+
+async def hybrid_search(source: str, query: str, top: int = 5) -> list[dict[str, Any]]:
+    results = await search_clients[source].search(
+        search_text=query,
+        vector_queries=[VectorizableTextQuery(text=query, k_nearest_neighbors=50, fields="text_vector")],
+        query_type=QueryType.SEMANTIC,
+        semantic_configuration_name="semantic-configuration",
+        top=top,
+        select=["chunk_id", "title", "chunk"],
+    )
+    return [
+        {
+            "id": f"{source}/{result['chunk_id']}",
+            "index": SOURCE_INDEXES[source],
+            "title": result["title"],
+            "content": result["chunk"],
+            "reranker_score": result["@search.reranker_score"] or 0.0,
+        }
+        async for result in results
+    ]
+
+
+def combine_results(result_lists: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Merge results from every search, keeping each chunk once with its best score."""
+    best: dict[str, dict[str, Any]] = {}
+    for results in result_lists:
+        for result in results:
+            current = best.get(result["id"])
+            if current is None or result["reranker_score"] > current["reranker_score"]:
+                best[result["id"]] = result
+    return sorted(best.values(), key=lambda result: result["reranker_score"], reverse=True)
+
+
+class QueryPlan(BaseModel):
+    queries: list[str] = Field(description="One to five focused search queries, each covering one information need.")
+
+
+PLANNER_INSTRUCTIONS = """You plan searches over Cocoarynth's company records.
+Split the user's question into the separate searches needed to answer every part of it.
+Use a single query when the question has only one information need."""
+
+
+@tool
+async def search_knowledge(
+    question: Annotated[str, Field(description="The user's full question, unchanged.")],
+) -> dict[str, Any]:
+    """Plan and run the searches needed to answer a question from Cocoarynth's company records."""
+    activity = ActivityLog()
+
+    started = time.perf_counter()
+    plan, usage = await ask_llm(PLANNER_INSTRUCTIONS, question, QueryPlan)
+    activity.record("query_planning", started, usage, queries=plan.queries)
+
+    started = time.perf_counter()
+    searches = [(source, query) for query in plan.queries for source in SOURCE_INDEXES]
+    async with asyncio.TaskGroup() as group:
+        tasks = [group.create_task(hybrid_search(source, query)) for source, query in searches]
+    result_lists = [task.result() for task in tasks]
+    activity.record(
+        "parallel_search",
+        started,
+        searches=[
+            {"index": SOURCE_INDEXES[source], "query": query, "result_count": len(results)}
+            for (source, query), results in zip(searches, result_lists)
+        ],
+    )
+
+    evidence = combine_results(result_lists)
+    return {"evidence": evidence, "activity": activity.steps}
+
+
+async def main() -> None:
+    agent = Agent(
+        client=chat_client,
+        name="diy-multi-source-fanout",
+        instructions="""You answer questions about Cocoarynth Chocolate Works, a bean-to-bar
+        chocolate maker, from its company records.
+        Always call search_knowledge with the user's full question before answering,
+        and answer only from the evidence it returns.
+        Cite the title of each document you use in square brackets.
+        If the evidence does not answer every part of the question, say what is missing.""",
+        tools=[search_knowledge],
+        default_options=OpenAIChatOptions(store=False),
+    )
+    server = ResponsesHostServer(agent)
+    try:
+        await server.run_async()
+    finally:
+        for search_client in search_clients.values():
+            await search_client.close()
+        await credential.close()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.WARNING)
+    logger.setLevel(logging.INFO)
+    asyncio.run(main())

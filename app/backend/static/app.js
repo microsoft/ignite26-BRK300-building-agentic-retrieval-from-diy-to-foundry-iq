@@ -54,6 +54,7 @@ const panelPaths = {
   "combined-configuration": "/combined/configuration",
   "combined-kb": "/combined/query",
   "combined-mcp": "/combined/mcp",
+  "diy-agents": "/diy-agents",
 };
 
 function activatePanel(target, updateHistory = false) {
@@ -317,14 +318,22 @@ function parseExtractedRecords(result) {
 }
 
 function activityLabel(activity) {
-  return ({
+  const label = ({
     modelQueryPlanning: "Query planning",
     searchIndex: "Index search",
     mcpServer: "MCP tool call",
     mcpTool: "MCP tool call",
     agenticReasoning: "Result re-ranking",
     modelAnswerSynthesis: "Answer synthesis",
+    diyToolCall: "Agent calls tool",
+    "diy:search": "Search",
+    "diy:query_planning": "Query planning",
+    "diy:parallel_search": "Parallel search",
+    "diy:llm_reranking": "LLM reranking",
+    "diy:reflection": "Reflection",
+    "diy:complexity_routing": "Complexity routing",
   })[activity.type] || activity.type || "Activity";
+  return activity.round ? `${label} · round ${activity.round}` : label;
 }
 
 function appendActivityFact(container, label, value) {
@@ -390,10 +399,12 @@ function createActivityDetails(activity) {
     appendActivityFact(details, "Results", activity.count);
   } else if (activity.type === "modelQueryPlanning" || activity.type === "modelAnswerSynthesis") {
     appendActivityFact(details, "Model", activity.modelName);
+  } else if (activity.type?.startsWith("diy")) {
+    appendDiyActivityDetails(details, activity);
   }
 
   if (activity.error?.message) details.append(element("div", "activity-error", activity.error.message));
-  details.append(configDetails("View step data", activity));
+  if (!activity.type?.startsWith("diy")) details.append(configDetails("View step data", activity));
   return details;
 }
 
@@ -544,4 +555,248 @@ document.addEventListener("click", async (event) => {
   toast("MCP endpoint copied.");
 });
 
-Promise.all([...corpora.map(loadCorpus), loadConfiguration()]).catch((error) => toast(error.message));
+function appendSearchTable(container, searches) {
+  if (!searches?.length) return;
+  const table = element("div", "diy-search-table");
+  for (const search of searches) {
+    const row = element("div", "diy-search-row");
+    const indexes = search.indexes ? search.indexes.join(", ") : search.index;
+    row.append(element("span", "diy-source", indexes || "—"));
+    row.append(element("span", "diy-query", typeof search === "string" ? search : search.query));
+    if (search.result_count !== undefined) row.append(element("span", "diy-count", `${search.result_count} results`));
+    table.append(row);
+  }
+  container.append(table);
+}
+
+function appendDiyActivityDetails(details, activity) {
+  appendActivityFact(details, "Model", activity.model);
+  switch (activity.type) {
+    case "diyToolCall":
+      appendActivityFact(details, "Tool", activity.name);
+      for (const [name, value] of Object.entries(activity.arguments || {})) appendActivityFact(details, name, value);
+      if (activity.error) details.append(element("div", "activity-error", activity.error));
+      break;
+    case "diy:search":
+      appendActivityFact(details, "Index", activity.index);
+      appendActivityFact(details, "Query", activity.query);
+      appendActivityFact(details, "Results", activity.result_count);
+      break;
+    case "diy:query_planning":
+      appendSearchTable(details, activity.searches || activity.queries);
+      break;
+    case "diy:parallel_search":
+      appendActivityFact(details, "Searches", activity.searches?.length);
+      appendSearchTable(details, activity.searches);
+      break;
+    case "diy:llm_reranking":
+      appendActivityFact(details, "Kept", `${activity.kept_count} of ${activity.candidate_count} results`);
+      break;
+    case "diy:reflection":
+      appendActivityFact(details, "Sufficient", activity.sufficient ? "Yes" : "No");
+      appendActivityFact(details, "Missing", activity.missing);
+      appendSearchTable(details, activity.follow_up_searches);
+      break;
+    case "diy:complexity_routing":
+      appendActivityFact(details, "Route", activity.route);
+      appendActivityFact(details, "Reason", activity.reason);
+      break;
+  }
+}
+
+function normalizeDiyActivity(toolCalls) {
+  return toolCalls.flatMap((call) => [
+    { type: "diyToolCall", name: call.name, arguments: call.arguments, error: call.error },
+    ...(call.activity || []).map((entry) => ({
+      ...entry,
+      type: `diy:${entry.step}`,
+      elapsedMs: entry.elapsed_ms,
+      inputTokens: entry.input_tokens,
+      outputTokens: entry.output_tokens,
+    })),
+  ]);
+}
+
+function citationLink(name) {
+  const link = element("a", "diy-citation", name);
+  link.href = `/api/diy/documents/${encodeURIComponent(name)}`;
+  link.target = "_blank";
+  link.rel = "noopener";
+  return link;
+}
+
+// Agents cite documents as [name.pdf], [a.pdf] [b.pdf], or [a.pdf; b.pdf].
+function appendTextWithCitations(container, text) {
+  let position = 0;
+  for (const match of text.matchAll(/\[([^[\]]*\.pdf[^[\]]*)\]/gi)) {
+    container.append(document.createTextNode(text.slice(position, match.index)));
+    const names = match[1].split(/[;,]/).map((name) => name.trim()).filter(Boolean);
+    container.append(document.createTextNode("["));
+    names.forEach((name, index) => {
+      if (index) container.append(document.createTextNode("; "));
+      container.append(name.toLowerCase().endsWith(".pdf") ? citationLink(name) : document.createTextNode(name));
+    });
+    container.append(document.createTextNode("]"));
+    position = match.index + match[0].length;
+  }
+  container.append(document.createTextNode(text.slice(position)));
+}
+
+function appendInlineMarkdown(container, text) {
+  text.split(/(\*\*[^*]+\*\*)/).forEach((part) => {
+    if (part.startsWith("**") && part.endsWith("**")) container.append(element("strong", "", part.slice(2, -2)));
+    else if (part) appendTextWithCitations(container, part);
+  });
+}
+
+function renderAnswer(text) {
+  const answer = element("div", "diy-answer");
+  for (const block of text.split(/\n{2,}/)) {
+    const lines = block.split("\n").filter((line) => line.trim());
+    if (!lines.length) continue;
+    if (lines.every((line) => /^\s*[-*] /.test(line))) {
+      const list = element("ul");
+      for (const line of lines) {
+        const item = element("li");
+        appendInlineMarkdown(item, line.replace(/^\s*[-*] /, ""));
+        list.append(item);
+      }
+      answer.append(list);
+    } else {
+      const paragraph = element("p");
+      appendInlineMarkdown(paragraph, lines.join(" "));
+      answer.append(paragraph);
+    }
+  }
+  return answer;
+}
+
+function diyMetric(label, value) {
+  const metric = element("div", "diy-metric");
+  metric.append(element("span", "", label), element("strong", "", value));
+  return metric;
+}
+
+function renderDiyResult(container, result) {
+  const activities = normalizeDiyActivity(result.toolCalls || []);
+  const llmSteps = activities.filter((activity) => activity.inputTokens);
+  const retrievalTokens = llmSteps.reduce((sum, activity) => sum + activity.inputTokens + (activity.outputTokens || 0), 0);
+  const searchCount = activities.reduce((sum, activity) => {
+    if (activity.type === "diy:search") return sum + 1;
+    if (activity.type === "diy:parallel_search") return sum + (activity.searches?.length || 0);
+    return sum;
+  }, 0);
+  const agentTokens = (result.agentUsage?.inputTokens || 0) + (result.agentUsage?.outputTokens || 0);
+
+  const metrics = element("div", "diy-metrics");
+  metrics.append(
+    diyMetric("Total time", `${(result.elapsedMs / 1000).toFixed(1)} s`),
+    diyMetric("Searches", String(searchCount)),
+    diyMetric("LLM calls in retrieval", String(llmSteps.length)),
+    diyMetric("Retrieval tokens", retrievalTokens.toLocaleString()),
+    diyMetric("Agent tokens", agentTokens.toLocaleString()),
+  );
+
+  const answer = element("section", "kb-section");
+  answer.append(element("h3", "", "Answer"), renderAnswer(result.answer || "The agent returned no answer."));
+
+  const activitySection = element("section", "kb-section");
+  activitySection.append(element("h3", "", `Activity log · ${activities.length} steps`));
+  activitySection.append(renderActivityLog(activities));
+
+  const evidence = (result.toolCalls || []).flatMap((call) => call.evidence || []);
+  const evidenceSection = element("section", "kb-section");
+  evidenceSection.append(element("h3", "", `Evidence returned to the agent · ${evidence.length}`));
+  const evidenceList = element("div", "reference-list");
+  for (const item of evidence) {
+    const row = element("article", "reference-item");
+    const title = element("div", "diy-evidence-title");
+    title.append(element("strong", "", item.title || "Untitled"));
+    if (item.index) title.append(element("span", "resource-kind", item.index));
+    row.append(title);
+    if (item.llm_relevance !== undefined) row.append(element("span", "score", `LLM relevance ${item.llm_relevance}/3`));
+    if (item.reranker_score !== undefined) row.append(element("span", "score score-secondary", `Reranker ${Number(item.reranker_score).toFixed(2)}`));
+    const content = element("details", "config-details diy-evidence-content");
+    content.append(element("summary", "", "Show chunk"), element("p", "reference-excerpt", item.content || ""));
+    row.append(content);
+    evidenceList.append(row);
+  }
+  evidenceSection.append(evidenceList);
+
+  container.replaceChildren(metrics, answer, activitySection, evidenceSection);
+}
+
+const diyState = { steps: [], selected: null };
+
+function selectDiyStep(name) {
+  const previous = diyState.steps.find((step) => step.name === diyState.selected);
+  const step = diyState.steps.find((item) => item.name === name);
+  if (!step) return;
+  diyState.selected = name;
+  $$(".diy-step").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.step === name)));
+  $("#diy-capability").textContent = step.capability;
+  $("#diy-hint").hidden = step.running;
+
+  const select = $("#diy-example");
+  select.replaceChildren(...step.examples.map((example, index) => new Option(example.label, String(index))));
+  const question = $("#diy-question");
+  const previousQuestions = (previous?.examples || []).map((example) => example.question);
+  if (!question.value.trim() || previousQuestions.includes(question.value)) {
+    question.value = step.examples[0]?.question || "";
+  }
+  const match = step.examples.findIndex((example) => example.question === question.value);
+  if (match >= 0) select.value = String(match);
+}
+
+async function loadDiySteps() {
+  const container = $("#diy-steps");
+  try {
+    const result = await api("/api/diy/agents");
+    diyState.steps = result.steps;
+    container.replaceChildren(...result.steps.map((step, index) => {
+      const button = element("button", "diy-step");
+      button.type = "button";
+      button.dataset.step = step.name;
+      button.setAttribute("aria-pressed", "false");
+      button.append(element("span", "diy-step-number", `Step ${index + 1}`), element("strong", "", step.title));
+      const status = element("span", step.running ? "diy-status running" : "diy-status", step.running ? "Running" : "Not running");
+      button.append(status);
+      button.addEventListener("click", () => selectDiyStep(step.name));
+      return button;
+    }));
+    selectDiyStep(diyState.selected || result.steps[0]?.name);
+  } catch (error) {
+    container.replaceChildren(element("div", "empty-state error", error.message));
+  }
+}
+
+$("#diy-refresh").addEventListener("click", loadDiySteps);
+$("#diy-example").addEventListener("change", (event) => {
+  const step = diyState.steps.find((item) => item.name === diyState.selected);
+  const example = step?.examples[Number(event.target.value)];
+  if (example) $("#diy-question").value = example.question;
+});
+$(".nav-item[data-target='diy-agents']").addEventListener("click", loadDiySteps);
+
+$("#diy-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const output = $("#diy-output");
+  const question = $("#diy-question").value.trim();
+  const step = diyState.steps.find((item) => item.name === diyState.selected);
+  if (!question || !step) return;
+  setLoading(output, `Asking ${step.name}... multi-step agents can take a minute.`);
+  try {
+    const result = await api("/api/diy/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ step: step.name, question }),
+    });
+    renderDiyResult(output, result);
+  } catch (error) {
+    output.replaceChildren(element("div", "empty-state error", error.message));
+    toast(error.message);
+    loadDiySteps();
+  }
+});
+
+Promise.all([...corpora.map(loadCorpus), loadConfiguration(), loadDiySteps()]).catch((error) => toast(error.message));

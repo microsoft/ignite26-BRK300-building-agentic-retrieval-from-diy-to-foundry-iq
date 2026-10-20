@@ -25,7 +25,7 @@ class EnvironmentLoadingTests(unittest.TestCase):
         with patch.dict(
             "os.environ",
             {
-                "AZURE_SEARCH_ENDPOINT": "https://example.search.windows.net",
+                "FOUNDRY_IQ_SEARCH_ENDPOINT": "https://example.search.windows.net",
                 "AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com",
                 "AZURE_STORAGE_ACCOUNT_NAME": "storage",
             },

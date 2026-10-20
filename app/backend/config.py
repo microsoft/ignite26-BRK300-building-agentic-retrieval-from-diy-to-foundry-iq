@@ -30,7 +30,7 @@ class Settings:
     def from_environment(cls) -> "Settings":
         load_local_environment()
         return cls(
-            search_endpoint=os.environ["AZURE_SEARCH_ENDPOINT"].rstrip("/"),
+            search_endpoint=os.environ["FOUNDRY_IQ_SEARCH_ENDPOINT"].rstrip("/"),
             openai_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"].rstrip("/"),
             embedding_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-large"),
             embedding_model=os.getenv("AZURE_OPENAI_EMBEDDING_MODEL", "text-embedding-3-large"),

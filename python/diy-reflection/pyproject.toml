@@ -1,0 +1,19 @@
+[project]
+name = "diy-reflection"
+version = "0.1.0"
+description = "DIY agentic retrieval: reflection and iteration"
+requires-python = ">=3.12"
+dependencies = [
+    "agent-framework-core>=1.10.0",
+    "agent-framework-foundry>=1.10.0",
+    "agent-framework-openai>=1.16.0",
+    "agent-framework-foundry-hosting>=1.0.0b260813",
+    "azure-identity>=1.25.3",
+    "azure-search-documents==12.1.0b1",
+]
+
+[tool.uv]
+package = false
+
+[tool.ty.environment]
+python = "./.venv"

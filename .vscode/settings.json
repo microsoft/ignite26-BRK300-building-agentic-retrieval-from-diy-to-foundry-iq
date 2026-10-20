@@ -1,0 +1,43 @@
+{
+    "python-envs.workspaceSearchPaths": [
+        ".venv",
+        "python/*/.venv"
+    ],
+    "python-envs.pythonProjects": [
+        {
+            "path": "python/diy-baseline",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/diy-query-decomposition",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/diy-multi-source-fanout",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/diy-source-selection",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/diy-llm-reranking",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/diy-reflection",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/diy-complexity-classifier",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ]
+}

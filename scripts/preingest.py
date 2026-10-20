@@ -57,7 +57,24 @@ ENGINEERING_PRACTICE_CORPUS = CorpusSpec(
     extracted_images_container_name="engineering-practice-images",
     description="Cocoarynth engineering, API, frontend, accessibility, and engineering culture guidance.",
 )
-CORPORA = (DOCUMENT_CORPUS, ENGINEERING_PRACTICE_CORPUS)
+COCOARYNTH_CORPUS_DIR = Path(__file__).parents[1] / "data" / "cocoarynth" / "documents"
+COCOARYNTH_CORPORA = tuple(
+    CorpusSpec(
+        key=name,
+        directory=COCOARYNTH_CORPUS_DIR / name,
+        index_name=f"{name}-index",
+        container_name=name,
+        extracted_images_container_name=f"{name}-images",
+        description=description,
+    )
+    for name, description in (
+        ("cocoarynth-origins", "Farm and supplier records, partly in Spanish."),
+        ("cocoarynth-quality", "Factory receiving, testing, tasting, and batch records."),
+        ("cocoarynth-logistics-retail", "Shipping, carrier, retailer, and sales records."),
+        ("cocoarynth-policies", "Company policies, guides, and reference material."),
+    )
+)
+CORPORA = (DOCUMENT_CORPUS, ENGINEERING_PRACTICE_CORPUS, *COCOARYNTH_CORPORA)
 
 
 def build_index(settings: Settings, index_name: str = DOCUMENT_CORPUS.index_name) -> SearchIndex:
@@ -457,7 +474,7 @@ def ingest_with_retry(operation: Any, attempts: int = 30, delay_seconds: int = 1
 
 def main() -> None:
     settings = Settings(
-        search_endpoint=os.environ["AZURE_SEARCH_ENDPOINT"].rstrip("/"),
+        search_endpoint=os.environ["FOUNDRY_IQ_SEARCH_ENDPOINT"].rstrip("/"),
         openai_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"].rstrip("/"),
         embedding_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-large"),
         embedding_model=os.getenv("AZURE_OPENAI_EMBEDDING_MODEL", "text-embedding-3-large"),

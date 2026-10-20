@@ -255,6 +255,99 @@ CONFIGURATION = {
     ],
 }
 
+DIY_AGENTS = {
+    "steps": [
+        {
+            "name": "diy-baseline",
+            "title": "Baseline",
+            "capability": "One hybrid search with semantic ranking over the quality index.",
+            "port": 8091,
+            "examples": [
+                {"label": "Succeeds: tasting panel winner", "question": "Which origin won the tasting panel?"},
+                {"label": "Fails: Madagascar tasters and hold", "question": "What did tasters think of the beans?"},
+            ],
+            "running": False,
+        },
+        {
+            "name": "diy-reflection",
+            "title": "Reflection",
+            "capability": "An LLM checks the evidence and plans follow-up searches until it is sufficient.",
+            "port": 8096,
+            "examples": [
+                {"label": "Needs reflection: Pantry Lane farms", "question": "A Pantry Lane customer asked which farms grew the cacao."},
+                {"label": "One round: grey Ghana bars", "question": "Why did the Ghana bars turn grey?"},
+            ],
+            "running": True,
+        },
+    ]
+}
+
+DIY_ANSWER = {
+    "step": "diy-reflection",
+    "elapsedMs": 41_500,
+    "answer": (
+        "The wrapper lot **EC26-0811** traces to bean lot EC26-L07. [batch-record-ec26-0811.pdf]\n\n"
+        "- Finca Las Brisas\n- Finca El Cedro [boletas-acopio-rio-claro-2026.pdf; data-sharing-policy.pdf]"
+    ),
+    "agentUsage": {"inputTokens": 3300, "outputTokens": 200},
+    "toolCalls": [
+        {
+            "name": "search_knowledge",
+            "arguments": {"question": "Which farms grew the cacao?"},
+            "activity": [
+                {
+                    "step": "query_planning",
+                    "elapsed_ms": 2100,
+                    "model": "gpt-5.5",
+                    "input_tokens": 450,
+                    "output_tokens": 60,
+                    "searches": [
+                        {
+                            "query": "Pantry Lane Ecuador wrapper farms",
+                            "indexes": ["cocoarynth-origins-index", "cocoarynth-logistics-retail-index"],
+                        }
+                    ],
+                },
+                {
+                    "step": "parallel_search",
+                    "elapsed_ms": 800,
+                    "round": 1,
+                    "searches": [
+                        {"index": "cocoarynth-origins-index", "query": "Pantry Lane Ecuador wrapper farms", "result_count": 5},
+                        {
+                            "index": "cocoarynth-logistics-retail-index",
+                            "query": "Pantry Lane Ecuador wrapper farms",
+                            "result_count": 5,
+                        },
+                    ],
+                },
+                {
+                    "step": "reflection",
+                    "elapsed_ms": 5900,
+                    "round": 1,
+                    "input_tokens": 4700,
+                    "output_tokens": 300,
+                    "sufficient": False,
+                    "missing": "The batch record linking EC26-0811 to its bean lot.",
+                    "follow_up_searches": [
+                        {"query": "Batch record EC26-0811 bean lots", "indexes": ["cocoarynth-quality-index"]}
+                    ],
+                },
+            ],
+            "evidence": [
+                {
+                    "id": "quality/1",
+                    "index": "cocoarynth-quality-index",
+                    "title": "batch-record-ec26-0811.pdf",
+                    "content": "Batch EC26-0811 used 250 kg of bean lot EC26-L07.",
+                    "reranker_score": 2.91,
+                    "llm_relevance": 3,
+                }
+            ],
+        }
+    ],
+}
+
 
 def wait_for_server_ready(url: str, timeout: float = 10.0, check_interval: float = 0.2) -> None:
     error = "Server did not become ready."
@@ -286,7 +379,7 @@ def run_server(port: int, live_smoke: bool) -> None:
     with mock.patch.dict(
         os.environ,
         {
-            "AZURE_SEARCH_ENDPOINT": "https://example.search.windows.net",
+            "FOUNDRY_IQ_SEARCH_ENDPOINT": "https://example.search.windows.net",
             "AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com",
             "AZURE_OPENAI_CHAT_DEPLOYMENT": "gpt-5.5",
             "AZURE_OPENAI_CHAT_MODEL": "gpt-5.5",
@@ -373,6 +466,14 @@ def mock_app_apis(page: Page, live_smoke: bool, document_error: bool = False) ->
         re.compile(r".*/api/mcp/retrieve$"),
         lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(MCP_RETRIEVAL)),
     )
+    page.route(
+        re.compile(r".*/api/diy/agents$"),
+        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(DIY_AGENTS)),
+    )
+    page.route(
+        re.compile(r".*/api/diy/ask$"),
+        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(DIY_ANSWER)),
+    )
 @pytest.mark.parametrize("viewport", [(390, 844), (768, 1024), (1280, 800)])
 def test_home_is_responsive(
     page: Page, live_server_url: str, live_smoke: bool, viewport: tuple[int, int]
@@ -428,6 +529,7 @@ def test_page_permalinks_and_browser_history(page: Page, live_server_url: str, l
         "combined/configuration": "combined-configuration",
         "combined/query": "combined-kb",
         "combined/mcp": "combined-mcp",
+        "diy-agents": "diy-agents",
     }.items():
         page.goto(f"{live_server_url}{path}")
         expect(page.locator(f"#{panel_id}")).to_have_class(re.compile(r"\bactive\b"))
@@ -680,3 +782,161 @@ def test_inventory_error_is_visible(page: Page, live_server_url: str, live_smoke
 
     expect(page.locator("#toast")).to_have_text("Search inventory is unavailable.")
     expect(page.locator("#toast")).to_have_class(re.compile(r"\bshow\b"))
+
+
+def test_diy_agents_page_shows_answer_and_activity_log(
+    page: Page, live_server_url: str, live_smoke: bool
+) -> None:
+    if live_smoke:
+        pytest.skip("The DIY agents run locally and are not part of live smoke testing.")
+    mock_app_apis(page, live_smoke)
+    payloads: list[dict] = []
+
+    def handle_ask(route: Route) -> None:
+        payloads.append(route.request.post_data_json)
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(DIY_ANSWER))
+
+    page.route(re.compile(r".*/api/diy/ask$"), handle_ask)
+    page.goto(live_server_url)
+    page.locator(".nav-group-diy").get_by_role("button", name="Ask a DIY agent", exact=True).click()
+    expect(page).to_have_url(re.compile(r"/diy-agents$"))
+
+    baseline = page.locator('.diy-step[data-step="diy-baseline"]')
+    expect(baseline).to_have_attribute("aria-pressed", "true")
+    expect(baseline).to_contain_text("Not running")
+    expect(page.locator("#diy-hint")).to_be_visible()
+    expect(page.locator("#diy-hint")).to_contain_text("python -m scripts.run_diy_agents")
+    expect(page.locator("#diy-question")).to_have_value("Which origin won the tasting panel?")
+    example = page.locator("#diy-example")
+    expect(example.locator("option")).to_have_text(["Succeeds: tasting panel winner", "Fails: Madagascar tasters and hold"])
+    example.select_option(label="Fails: Madagascar tasters and hold")
+    expect(page.locator("#diy-question")).to_have_value("What did tasters think of the beans?")
+
+    page.locator('.diy-step[data-step="diy-reflection"]').click()
+    expect(page.locator("#diy-hint")).to_be_hidden()
+    expect(page.locator("#diy-capability")).to_contain_text("follow-up searches")
+    question = page.locator("#diy-question")
+    expect(question).to_have_value(re.compile(r"Pantry Lane"))
+
+    expect(example.locator("option")).to_have_text(["Needs reflection: Pantry Lane farms", "One round: grey Ghana bars"])
+    example.select_option(label="One round: grey Ghana bars")
+    expect(question).to_have_value("Why did the Ghana bars turn grey?")
+    example.select_option(label="Needs reflection: Pantry Lane farms")
+    expect(question).to_have_value(re.compile(r"Pantry Lane"))
+
+    question.fill("Which farms grew the cacao?")
+    page.locator('.diy-step[data-step="diy-baseline"]').click()
+    expect(page.locator("#diy-question")).to_have_value("Which farms grew the cacao?")
+    page.locator('.diy-step[data-step="diy-reflection"]').click()
+    example.select_option(label="Needs reflection: Pantry Lane farms")
+
+    page.get_by_role("button", name="Ask agent").click()
+
+    output = page.locator("#diy-output")
+    expect(output.locator(".diy-answer strong")).to_have_text("EC26-0811")
+    expect(output.locator(".diy-answer li")).to_have_count(2)
+    citations = output.locator(".diy-answer a.diy-citation")
+    expect(citations).to_have_count(3)
+    expect(citations.nth(0)).to_have_text("batch-record-ec26-0811.pdf")
+    expect(citations.nth(0)).to_have_attribute("href", "/api/diy/documents/batch-record-ec26-0811.pdf")
+    expect(citations.nth(0)).to_have_attribute("target", "_blank")
+    expect(citations.nth(2)).to_have_text("data-sharing-policy.pdf")
+    expect(output.locator(".diy-answer li").nth(1)).to_contain_text(
+        "Finca El Cedro [boletas-acopio-rio-claro-2026.pdf; data-sharing-policy.pdf]"
+    )
+    expect(output.locator(".diy-metric").filter(has_text="Total time")).to_contain_text("41.5 s")
+    expect(output.locator(".diy-metric").filter(has_text="Searches")).to_contain_text("2")
+    expect(output.locator(".diy-metric").filter(has_text="LLM calls in retrieval")).to_contain_text("2")
+    expect(output.locator(".diy-metric").filter(has_text="Retrieval tokens")).to_contain_text("5,510")
+    expect(output.locator(".diy-metric").filter(has_text="Agent tokens")).to_contain_text("3,500")
+
+    rows = output.locator(".activity-row")
+    expect(rows).to_have_count(4)
+    expect(rows.nth(0)).to_contain_text("Agent calls tool")
+    expect(rows.nth(0)).to_contain_text("search_knowledge")
+    expect(rows.nth(1)).to_contain_text("Query planning")
+    expect(rows.nth(1)).to_contain_text("cocoarynth-origins-index, cocoarynth-logistics-retail-index")
+    expect(rows.nth(2).locator(".diy-source")).to_have_text(
+        ["cocoarynth-origins-index", "cocoarynth-logistics-retail-index"]
+    )
+    expect(rows.nth(3).locator(".diy-source")).to_have_text("cocoarynth-quality-index")
+    expect(rows.nth(1)).to_contain_text("Model:gpt-5.5")
+    expect(output.get_by_text("View step data")).to_have_count(0)
+    expect(rows.nth(2)).to_contain_text("Parallel search · round 1")
+    expect(rows.nth(2).locator(".diy-search-row")).to_have_count(2)
+    expect(rows.nth(3)).to_contain_text("Reflection · round 1")
+    expect(rows.nth(3)).to_contain_text("Sufficient:No")
+    expect(rows.nth(3)).to_contain_text("Batch record EC26-0811 bean lots")
+    expect(rows.nth(3).locator(".token-meter")).to_contain_text("5,000")
+    expect(rows.nth(3).locator(".activity-elapsed")).to_have_text("5,900 ms")
+
+    evidence = output.locator(".reference-item")
+    expect(evidence).to_have_count(1)
+    expect(evidence).to_contain_text("batch-record-ec26-0811.pdf")
+    expect(evidence.locator(".resource-kind")).to_have_text("cocoarynth-quality-index")
+    expect(evidence).to_contain_text("LLM relevance 3/3")
+    expect(evidence).to_contain_text("Reranker 2.91")
+    assert payloads == [{"step": "diy-reflection", "question": DIY_AGENTS["steps"][1]["examples"][0]["question"]}]
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+
+
+def test_diy_agent_error_is_visible(page: Page, live_server_url: str, live_smoke: bool) -> None:
+    if live_smoke:
+        pytest.skip("The intentional mocked failure is not part of live smoke testing.")
+    mock_app_apis(page, live_smoke)
+    detail = "diy-baseline is not running on port 8091. Start the DIY agents locally with: python -m scripts.run_diy_agents"
+    page.route(
+        re.compile(r".*/api/diy/ask$"),
+        lambda route: route.fulfill(status=503, content_type="application/json", body=json.dumps({"detail": detail})),
+    )
+    page.goto(f"{live_server_url}diy-agents")
+
+    page.get_by_role("button", name="Ask agent").click()
+
+    expect(page.locator("#diy-output")).to_contain_text("diy-baseline is not running on port 8091")
+
+
+def test_diy_single_index_steps_show_the_index(page: Page, live_server_url: str, live_smoke: bool) -> None:
+    if live_smoke:
+        pytest.skip("The DIY agents run locally and are not part of live smoke testing.")
+    mock_app_apis(page, live_smoke)
+    answer = {
+        **DIY_ANSWER,
+        "toolCalls": [
+            {
+                "name": "search_knowledge",
+                "arguments": {"query": "Madagascar tasters"},
+                "activity": [
+                    {
+                        "step": "search",
+                        "elapsed_ms": 820,
+                        "index": "cocoarynth-quality-index",
+                        "query": "Madagascar tasters",
+                        "result_count": 5,
+                    },
+                    {
+                        "step": "parallel_search",
+                        "elapsed_ms": 840,
+                        "searches": [
+                            {"index": "cocoarynth-quality-index", "query": "Madagascar tasting panel", "result_count": 5},
+                            {"index": "cocoarynth-quality-index", "query": "Madagascar lot hold", "result_count": 5},
+                        ],
+                    },
+                ],
+                "evidence": [],
+            }
+        ],
+    }
+    page.route(
+        re.compile(r".*/api/diy/ask$"),
+        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(answer)),
+    )
+    page.goto(f"{live_server_url}diy-agents")
+
+    page.get_by_role("button", name="Ask agent").click()
+
+    rows = page.locator("#diy-output .activity-row")
+    expect(rows.nth(1)).to_contain_text("Index:cocoarynth-quality-index")
+    search_rows = rows.nth(2).locator(".diy-search-row")
+    expect(search_rows).to_have_count(2)
+    expect(search_rows.locator(".diy-source")).to_have_text(["cocoarynth-quality-index", "cocoarynth-quality-index"])

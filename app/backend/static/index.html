@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=12" />
+    <link rel="stylesheet" href="/assets/styles.css?v=15" />
   </head>
   <body>
     <header>
@@ -41,6 +41,10 @@
             <button class="nav-item" data-target="combined-kb">Query knowledge base</button>
             <button class="nav-item" data-target="combined-mcp">Call over MCP</button>
           </div>
+          <div class="nav-group nav-group-diy">
+            <span class="nav-label">DIY agentic retrieval</span>
+            <button class="nav-item" data-target="diy-agents">Ask a DIY agent</button>
+          </div>
         </nav>
       </aside>
 
@@ -51,6 +55,7 @@
             <section><h3>Project requirements</h3><p>Browse source documents, inspect chunks, search the index, or call retrieval over MCP.</p></section>
             <section><h3>Engineering practices</h3><p>Explore the engineering guidance corpus through the same document and retrieval views.</p></section>
             <section><h3>Combined knowledge base</h3><p>Inspect its configuration or retrieve across both corpora.</p></section>
+            <section><h3>DIY agentic retrieval</h3><p>Ask the seven Agent Framework agents that build agentic retrieval step by step, and see each one's activity log.</p></section>
           </div>
         </div>
 
@@ -125,9 +130,29 @@
           <form class="mcp-search" data-target="combined"><textarea aria-label="Combined MCP question" rows="3">What product requirements and company engineering standards should guide CSV Origin Passport support? Cite evidence from both corpora.</textarea><button class="primary" type="submit">Call over MCP</button></form>
           <div class="mcp-output"><div class="empty-state">MCP content blocks will appear here.</div></div>
         </div>
+
+        <div id="diy-agents" class="panel">
+          <div class="panel-heading"><h2>DIY agentic retrieval</h2><p>Ask one of the seven Agent Framework agents and see every retrieval step it took.</p></div>
+          <div id="diy-steps" class="diy-steps" aria-label="DIY step"><div class="empty-state">Loading DIY agents...</div></div>
+          <div id="diy-hint" class="diy-hint" hidden>
+            <p>This agent isn't running. Start all seven DIY agents from the repository root:</p>
+            <code>python -m scripts.run_diy_agents</code>
+            <button id="diy-refresh" type="button">Check again</button>
+          </div>
+          <p id="diy-capability" class="diy-capability"></p>
+          <form id="diy-form" class="diy-form">
+            <label for="diy-example">Example question</label>
+            <select id="diy-example"></select>
+            <textarea id="diy-question" aria-label="Question for the DIY agent" rows="3"></textarea>
+            <div class="diy-actions">
+              <button class="primary" type="submit">Ask agent</button>
+            </div>
+          </form>
+          <div id="diy-output" class="kb-output"><div class="empty-state">The answer, activity log, and evidence will appear here.</div></div>
+        </div>
       </section>
     </main>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/assets/app.js?v=24"></script>
+    <script src="/assets/app.js?v=30"></script>
   </body>
 </html>

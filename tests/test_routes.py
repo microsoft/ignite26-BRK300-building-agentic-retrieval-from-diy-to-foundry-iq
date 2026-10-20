@@ -46,7 +46,7 @@ class RouteContractTests(unittest.TestCase):
         )
 
         self.assertEqual(503, response.status_code)
-        self.assertIn("Verify AZURE_SEARCH_ENDPOINT", json.loads(response.body)["detail"])
+        self.assertIn("Verify FOUNDRY_IQ_SEARCH_ENDPOINT", json.loads(response.body)["detail"])
 
     def test_mcp_service_failures_return_actionable_503(self) -> None:
         response = asyncio.run(mcp_service_error(None, McpRetrievalError()))  # type: ignore[arg-type]
