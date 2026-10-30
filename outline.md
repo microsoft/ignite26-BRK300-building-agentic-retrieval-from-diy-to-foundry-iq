@@ -23,9 +23,9 @@ The core framing:
 
 ### Baseline
 
-**Question -> Azure AI Search (hybrid + semantic ranker) -> results -> answer generation**
+**Question -> Foundry IQ (hybrid + semantic ranker) -> results -> answer generation**
 
-- Use a direct Azure AI Search call as the baseline rather than presenting simple RAG as DIY.
+- Use a direct Foundry IQ search call as the baseline rather than presenting simple RAG as DIY.
 - Start at hybrid search with semantic ranking. Skip a vector-only step: the session isn't about rebuilding search or decomposing hybrid search into its internals.
 - Skip a separate single-query rewriting step. Most agents already rewrite the user's question into one search query before calling a tool.
 - Establish that a single retrieval works well when the question maps cleanly to one search.
@@ -148,6 +148,10 @@ The DIY system now needs to:
 
 Ranking is another model call, with more latency, more tokens, and another prompt to maintain.
 
+It also needs tuning to be usable. The first version took about 20 seconds per call: the model reasoned before judging, and copied back every long chunk ID in its output. Labeling candidates A, B, C… and turning reasoning off brought it to about 2 seconds with the same judgments. That's the kind of tuning a DIY system has to discover and maintain itself.
+
+A specialized model is another DIY option. Microsoft-Decision-1 returns typed scores instead of text, and reranked in about 1 second instead of 2–3. But it scored chunks that answer only one part of a multi-part question too low, so follow-up results got dropped. Scoring follow-ups against what reflection says is still missing, and reserving them evidence slots, fixed that. Same lesson: every model swap needs its own evaluation and tuning.
+
 ---
 
 ## 6. Failure #5: The first pass isn't enough
@@ -176,7 +180,7 @@ Ask a question where the first round of results reveals something (a term, entit
 
 ## 7. New problem: we're doing all this for every question
 
-Return to the simple question from section 1 that the original Azure AI Search call answered perfectly well.
+Return to the simple question from section 1 that the original Foundry IQ search call answered perfectly well.
 
 Running the entire agentic pipeline would add unnecessary work.
 
@@ -305,9 +309,9 @@ Show pre-measured numbers on a slide for the DIY pipeline versus Foundry IQ on t
 - LLM calls and tokens per question
 - estimated cost per question
 
-### Azure AI Search positioning
+### Foundry IQ positioning
 
-> All the databases do vector search, but Azure AI Search has the best costs and models.
+> All the databases do vector search, but Foundry IQ has the best costs and models.
 
 The comparison should not be "DIY bad, product good." The DIY implementation is the teaching device that makes the managed capabilities understandable.
 

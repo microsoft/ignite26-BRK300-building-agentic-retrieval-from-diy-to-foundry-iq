@@ -37,27 +37,39 @@ chat_client = FoundryChatClient(
 
 
 class ActivityLog:
-    """Records each retrieval step with its latency and token usage so the demo can show what happened."""
+    """Records each retrieval step with its timing and LLM usage so the demo can show what happened."""
 
     def __init__(self) -> None:
         self.steps: list[dict[str, Any]] = []
 
-    def record(self, step: str, started: float, usage: Any = None, **details: Any) -> None:
-        entry = {"step": step, "elapsed_ms": round((time.perf_counter() - started) * 1000), **details}
-        if usage:
-            entry["model"] = MODEL_DEPLOYMENT_NAME
-            entry["input_tokens"] = usage.get("input_token_count")
-            entry["output_tokens"] = usage.get("output_token_count")
+    def record(self, step: str, started: float, llm_call: dict[str, Any] | None = None, **details: Any) -> None:
+        elapsed = time.perf_counter() - started
+        entry = {
+            "step": step,
+            "elapsed_ms": round(elapsed * 1000),
+            "started_at_ms": round((time.time() - elapsed) * 1000),
+            **details,
+            **(llm_call or {}),
+        }
         self.steps.append(entry)
         logger.info("%s", json.dumps(entry))
 
 
-async def ask_llm(instructions: str, prompt: str, response_format: type[BaseModel]) -> tuple[Any, Any]:
+async def ask_llm(
+    instructions: str, prompt: str, response_format: type[BaseModel]
+) -> tuple[Any, dict[str, Any]]:
     response = await chat_client.get_response(
         [Message("user", [prompt])],
         options={"instructions": instructions, "response_format": response_format, "store": False},
     )
-    return response.value, response.usage_details
+    usage = response.usage_details or {}
+    reported_reasoning = getattr(response.raw_representation, "reasoning", None)
+    return response.value, {
+        "model": MODEL_DEPLOYMENT_NAME,
+        "reasoning_effort": reported_reasoning.effort if reported_reasoning else None,
+        "input_tokens": usage.get("input_token_count"),
+        "output_tokens": usage.get("output_token_count"),
+    }
 
 
 async def hybrid_search(query: str, top: int = 5) -> list[dict[str, Any]]:
@@ -108,8 +120,8 @@ async def search_knowledge(
     activity = ActivityLog()
 
     started = time.perf_counter()
-    plan, usage = await ask_llm(PLANNER_INSTRUCTIONS, question, QueryPlan)
-    activity.record("query_planning", started, usage, queries=plan.queries)
+    plan, llm_call = await ask_llm(PLANNER_INSTRUCTIONS, question, QueryPlan)
+    activity.record("query_planning", started, llm_call, queries=plan.queries)
 
     started = time.perf_counter()
     async with asyncio.TaskGroup() as group:

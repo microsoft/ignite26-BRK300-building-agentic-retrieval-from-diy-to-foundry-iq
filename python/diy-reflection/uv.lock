@@ -754,6 +754,7 @@ dependencies = [
     { name = "agent-framework-openai" },
     { name = "azure-identity" },
     { name = "azure-search-documents" },
+    { name = "httpx" },
 ]
 
 [package.metadata]
@@ -764,6 +765,7 @@ requires-dist = [
     { name = "agent-framework-openai", specifier = ">=1.16.0" },
     { name = "azure-identity", specifier = ">=1.25.3" },
     { name = "azure-search-documents", specifier = "==12.1.0b1" },
+    { name = "httpx", specifier = ">=0.28.1" },
 ]
 
 [[package]]

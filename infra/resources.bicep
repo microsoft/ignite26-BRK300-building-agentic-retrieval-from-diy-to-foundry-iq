@@ -10,13 +10,23 @@ param chatDeployment object = {
   name: 'gpt-5.5'
   model: 'gpt-5.5'
   version: '2026-04-24'
-  capacity: 100
+  // Thousands of tokens per minute. The DIY reranking step alone sends about 20K tokens per call.
+  capacity: 1000
 }
 param embeddingDeployment object = {
   name: 'text-embedding-3-large'
   model: 'text-embedding-3-large'
   version: '1'
   capacity: 30
+}
+// Preview decision model for typed judgments (scores, choices, yes/no) instead of generated text.
+param decisionDeployment object = {
+  name: 'decision-1'
+  model: 'Microsoft-Decision-1'
+  version: '1'
+  sku: 'DataZoneStandard'
+  // Requests per minute. The DIY steps make one batched call per rerank and one per routing decision.
+  capacity: 250
 }
 
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
@@ -137,6 +147,24 @@ resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
         format: 'OpenAI'
         name: embeddingDeployment.model
         version: embeddingDeployment.version
+      }
+    }
+  }
+
+  resource decision 'deployments' = {
+    name: decisionDeployment.name
+    dependsOn: [
+      embedding
+    ]
+    sku: {
+      name: decisionDeployment.sku
+      capacity: decisionDeployment.capacity
+    }
+    properties: {
+      model: {
+        format: 'Microsoft'
+        name: decisionDeployment.model
+        version: decisionDeployment.version
       }
     }
   }
@@ -465,6 +493,7 @@ output aiProjectName string = aiAccount::project.name
 output aiProjectId string = aiAccount::project.id
 output aiProjectEndpoint string = aiAccount::project.properties.endpoints['AI Foundry API']
 output chatDeploymentName string = chatDeployment.name
+output decisionDeploymentName string = aiAccount::decision.name
 output contentUnderstandingDeploymentName string = chatDeployment.name
 output contentUnderstandingModelName string = chatDeployment.model
 output storageAccountName string = storage.name

@@ -5,6 +5,38 @@ Why does agentic retrieval matter, and what does it take to build it yourself? I
 
 [outline.md](outline.md) is the source of truth for the session structure, demo architecture, and DIY capability progression. Follow it when building demos, slides, or portal features.
 
+## Naming
+
+Say "Foundry IQ", never "Azure AI Search", in slides, speaker notes, docs, and UI text. Code identifiers that come from SDKs or Azure resource types, such as `SearchClient`, `azure-search-documents`, or `Microsoft.Search/searchServices`, keep their names.
+
+## Slide guidelines
+
+Slides follow this year's Ignite theme, even where it differs from the Cocoarynth brand used in the portal and documents.
+
+- Fonts: Segoe UI Semibold for headings, Segoe UI for body text. Don't add bold or italics to headings; bold in body text is fine for emphasis, such as marking keyword matches.
+- Text color: black (`#000000`) for headings and body text.
+- Colors: use the Microsoft brand colors below. Type and background combinations must meet a 4.5:1 contrast ratio, and color must not be the only way information is conveyed.
+- Cocoarynth logos and document screenshots can appear as imagery.
+- No code on slides. Keep slides high-level and architectural, since the audience includes both Python and C# developers. Link each DIY step's slide to its code instead.
+
+| Family | Light | Mid | Dark |
+|---|---|---|---|
+| Whites | Pure White `#FFFFFF` | Off White `#F4F3F5` | Warm White `#FFF8F3` |
+| Warm grays | Warm Light Gray `#E8E6DF` | Mid Gray `#D7D2CB` | Warm Gray `#8C8279` |
+| Cold grays | Light Gray `#D9D9D6` | Cool Gray `#B1B3B3` | Dark Gray `#454142` |
+| Browns | Light Brown `#E1D3C7` | Brown `#BF9474` | Dark Brown `#5C4738` |
+| Yellows | Light Yellow `#FFE399` | Yellow `#FFB900` | Dark Yellow `#7F5A1A` |
+| Oranges | Light Orange `#FFA38B` | Orange `#FF5C39` | Dark Orange `#73391D` |
+| Reds | Light Red `#FFB3BB` | Red `#F4364C` | Dark Red `#73262F` |
+| Magentas | Light Magenta `#D59ED7` | Magenta `#C03BC4` | Dark Magenta `#702573` |
+| Purples | Light Purple `#C5B4E3` | Purple `#8661C5` | Dark Purple `#463668` |
+| Blues | Light Blue `#8DC8E8` | Blue `#0078D4` | Dark Blue `#2A446F` |
+| Teals | Light Teal `#B9DCD2` | Teal `#49C5B1` | Dark Teal `#225B62` |
+| Greens | Light Green `#D4EC8E` | Green `#8DE971` | Dark Green `#07641D` |
+| Blacks | Blue Black `#091F2C` | Pure Black `#000000` | Brown Black `#291817` |
+
+When previewing generated decks, don't script PowerPoint against its active presentation: the user may have other decks open. Use `qlmanage -t` or LibreOffice instead, or ask first.
+
 ## Development Tips
 
 ### Start the portal locally
@@ -80,13 +112,15 @@ Each step logs its activity to the `azd ai agent run` terminal as `INFO:<step-na
 
 #### Ask the agents from the portal
 
-The portal's **DIY agentic retrieval** page (`/diy-agents`) asks any step a question and shows its answer, activity log (each tool call, planned and parallel searches by source, reranking, reflection rounds, routing, with timings and token usage), and the evidence it returned. Start all seven agents with one command from the repository root, then start the portal as described above and open <http://127.0.0.1:8000/diy-agents>:
+The portal's **DIY agentic retrieval** page (`/diy-agents`) asks any step a question and shows its answer, a latency waterfall (each retrieval step plus the agent's own model calls before and after retrieval, placed by the start times the agents record), the activity log (each tool call, planned and parallel searches by index, reranking, reflection rounds, routing, with timings and token usage), and the evidence it returned. Start all seven agents with one command from the repository root, then start the portal as described above and open <http://127.0.0.1:8000/diy-agents>:
 
 ```shell
 .venv/bin/python -m scripts.run_diy_agents
 ```
 
 Each step listens on its own port (8091–8097), so all seven can run at once. Pass step names to start only some of them, for example `.venv/bin/python -m scripts.run_diy_agents diy-baseline diy-reflection`. The script creates a missing step `.venv`, prints only each agent's activity log, startup, and error lines, and stops every agent on Ctrl+C. The step list, ports, and example questions live in `app/backend/diy_agents.py`; add new steps there too. Each step has a few examples with short labels such as "Succeeds: tasting panel winner" or "Fails: grey Ghana bars", which the page offers in a dropdown. The page only reaches agents running on the same machine as the portal, so it doesn't work in the deployed portal.
+
+Steps 5–7 rerank with Microsoft-Decision-1 (the `decision-1` deployment, `FOUNDRY_DECISION_DEPLOYMENT_NAME`), and step 7 also routes with it. Each step keeps the chat-model version behind a constant at the top of `main.py`: set `RERANKER = "chat"` or `ROUTER = "chat"` to switch back. The thresholds next to those constants (`DECISION_MIN_RELEVANCE`, `AGENTIC_PROBABILITY_THRESHOLD`) were measured against the chat model's decisions; re-measure them if you change the prompts or data.
 
 Lint all steps with `uvx ruff check python`.
 

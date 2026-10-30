@@ -4,9 +4,11 @@ import asyncio
 import json
 import logging
 import os
+import string
 import time
 from typing import Annotated, Any, Literal
 
+import httpx
 from agent_framework import Agent, Message, tool
 from agent_framework.foundry import FoundryChatClient
 from agent_framework.openai import OpenAIChatOptions
@@ -21,6 +23,9 @@ logger = logging.getLogger("diy-reflection")
 PROJECT_ENDPOINT = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
 MODEL_DEPLOYMENT_NAME = os.environ["FOUNDRY_MODEL_DEPLOYMENT_NAME"]
 SEARCH_ENDPOINT = os.environ["FOUNDRY_IQ_SEARCH_ENDPOINT"]
+DECISION_DEPLOYMENT_NAME = os.environ["FOUNDRY_DECISION_DEPLOYMENT_NAME"]
+# Microsoft-Decision-1 is called on the Foundry resource endpoint, not the project endpoint.
+DECISION_URL = PROJECT_ENDPOINT.split("/api/projects/")[0] + "/providers/microsoft/v1/systemone"
 SOURCE_INDEXES = {
     "origins": "cocoarynth-origins-index",
     "quality": "cocoarynth-quality-index",
@@ -50,6 +55,13 @@ MIN_RELEVANCE = 2
 MAX_EVIDENCE = 8
 MAX_ROUNDS = 3
 
+# "decision" scores relevance with Microsoft-Decision-1; "chat" asks the chat model. Decision-1 measured
+# about 3x faster and kept nearly the same chunks.
+RERANKER: Literal["decision", "chat"] = "decision"
+# Decision-1 returns a probability-weighted score from 0 to 3. A threshold of 1.5 best matched the chat
+# model's "2 or higher" decisions: it kept 88% of the same chunks, and 93% of what it kept matched.
+DECISION_MIN_RELEVANCE = 1.5
+
 credential = (
     ManagedIdentityCredential()
     if "FOUNDRY_HOSTING_ENVIRONMENT" in os.environ
@@ -64,30 +76,67 @@ chat_client = FoundryChatClient(
     model=MODEL_DEPLOYMENT_NAME,
     credential=credential,
 )
+decision_client = httpx.AsyncClient(timeout=60)
 
 
 class ActivityLog:
-    """Records each retrieval step with its latency and token usage so the demo can show what happened."""
+    """Records each retrieval step with its timing and LLM usage so the demo can show what happened."""
 
     def __init__(self) -> None:
         self.steps: list[dict[str, Any]] = []
 
-    def record(self, step: str, started: float, usage: Any = None, **details: Any) -> None:
-        entry = {"step": step, "elapsed_ms": round((time.perf_counter() - started) * 1000), **details}
-        if usage:
-            entry["model"] = MODEL_DEPLOYMENT_NAME
-            entry["input_tokens"] = usage.get("input_token_count")
-            entry["output_tokens"] = usage.get("output_token_count")
+    def record(self, step: str, started: float, llm_call: dict[str, Any] | None = None, **details: Any) -> None:
+        elapsed = time.perf_counter() - started
+        entry = {
+            "step": step,
+            "elapsed_ms": round(elapsed * 1000),
+            "started_at_ms": round((time.time() - elapsed) * 1000),
+            **details,
+            **(llm_call or {}),
+        }
         self.steps.append(entry)
         logger.info("%s", json.dumps(entry))
 
 
-async def ask_llm(instructions: str, prompt: str, response_format: type[BaseModel]) -> tuple[Any, Any]:
-    response = await chat_client.get_response(
-        [Message("user", [prompt])],
-        options={"instructions": instructions, "response_format": response_format, "store": False},
-    )
-    return response.value, response.usage_details
+async def ask_llm(
+    instructions: str,
+    prompt: str,
+    response_format: type[BaseModel],
+    reasoning_effort: Literal["none", "low", "medium", "high"] | None = None,
+) -> tuple[Any, dict[str, Any]]:
+    options = OpenAIChatOptions(instructions=instructions, response_format=response_format, store=False)
+    if reasoning_effort:
+        options["reasoning"] = {"effort": reasoning_effort}
+    response = await chat_client.get_response([Message("user", [prompt])], options=options)
+    usage = response.usage_details or {}
+    reported_reasoning = getattr(response.raw_representation, "reasoning", None)
+    return response.value, {
+        "model": MODEL_DEPLOYMENT_NAME,
+        "reasoning_effort": reported_reasoning.effort if reported_reasoning else None,
+        "input_tokens": usage.get("input_token_count"),
+        "output_tokens": usage.get("output_token_count"),
+    }
+
+
+async def ask_decision_model(state: Any, questions: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Ask Microsoft-Decision-1 typed questions about a state. It returns numbers, not generated text."""
+    token = await credential.get_token("https://cognitiveservices.azure.com/.default")
+    for attempt in range(4):
+        response = await decision_client.post(
+            DECISION_URL,
+            json={"model": DECISION_DEPLOYMENT_NAME, "state": state, "questions": questions},
+            headers={"Authorization": f"Bearer {token.token}"},
+        )
+        if response.status_code != 429 or attempt == 3:
+            break
+        await asyncio.sleep(float(response.headers.get("retry-after", 2**attempt)))
+    response.raise_for_status()
+    payload = response.json()
+    return payload["answers"], {
+        "model": DECISION_DEPLOYMENT_NAME,
+        "input_tokens": payload["usage"]["input_tokens"],
+        "output_tokens": payload["usage"]["output_tokens"],
+    }
 
 
 async def hybrid_search(source: str, query: str, top: int = 5) -> list[dict[str, Any]]:
@@ -178,35 +227,101 @@ class Ranking(BaseModel):
 
 
 RERANKER_INSTRUCTIONS = """You judge how well each search result helps answer the user's question.
-Judge every result on its own content, regardless of which search returned it."""
+Judge every result on its own content, regardless of which search returned it.
+If still_missing is given, judge how well each result supplies that missing information."""
 
 
-async def rerank(
-    question: str, candidates: list[dict[str, Any]], activity: ActivityLog, round_number: int
-) -> list[dict[str, Any]]:
-    started = time.perf_counter()
+def short_labels(count: int) -> list[str]:
+    """A, B, ..., Z, AA, AB, ...: short IDs the reranker can copy back quickly and accurately."""
+    labels = []
+    for index in range(1, count + 1):
+        label = ""
+        while index:
+            index, remainder = divmod(index - 1, 26)
+            label = string.ascii_uppercase[remainder] + label
+        labels.append(label)
+    return labels
+
+
+RELEVANCE_LEVELS = [
+    "Irrelevant to the question",
+    "Related background only",
+    "Partially answers the question",
+    "Directly answers part of the question",
+]
+
+
+async def score_with_decision_model(
+    question: str, labels: list[str], candidates: list[dict[str, Any]], missing: str | None
+) -> tuple[dict[str, float], dict[str, Any]]:
+    state: dict[str, Any] = {
+        "question": question,
+        "results": {
+            label: {"title": candidate["title"], "content": candidate["content"]}
+            for label, candidate in zip(labels, candidates)
+        },
+    }
+    instructions = "How well does search result {label} help answer the question?"
+    if missing:
+        # Follow-up results target one gap. Scored against the whole question, they look only partly relevant.
+        state["still_missing"] = missing
+        instructions = "How well does search result {label} supply what is still missing from the answer?"
+    questions = {
+        f"relevance_{label}": {
+            "type": "score",
+            "instructions": instructions.format(label=label),
+            "criteria": RELEVANCE_LEVELS,
+        }
+        for label in labels
+    }
+    answers, llm_call = await ask_decision_model(state, questions)
+    return {label: answers[f"relevance_{label}"]["score"] for label in labels}, llm_call
+
+
+async def score_with_chat_model(
+    question: str, labels: list[str], candidates: list[dict[str, Any]], missing: str | None
+) -> tuple[dict[str, float], dict[str, Any]]:
     prompt = json.dumps(
         {
             "question": question,
+            "still_missing": missing,
             "results": [
-                {"id": candidate["id"], "title": candidate["title"], "content": candidate["content"]}
-                for candidate in candidates
+                {"id": label, "title": candidate["title"], "content": candidate["content"]}
+                for label, candidate in zip(labels, candidates)
             ],
         }
     )
-    ranking, usage = await ask_llm(RERANKER_INSTRUCTIONS, prompt, Ranking)
-    relevance = {judgment.id: judgment.relevance for judgment in ranking.judgments}
+    ranking, llm_call = await ask_llm(RERANKER_INSTRUCTIONS, prompt, Ranking, reasoning_effort="none")
+    return {judgment.id: judgment.relevance for judgment in ranking.judgments}, llm_call
+
+
+async def rerank(
+    question: str,
+    candidates: list[dict[str, Any]],
+    activity: ActivityLog,
+    round_number: int,
+    missing: str | None = None,
+) -> list[dict[str, Any]]:
+    started = time.perf_counter()
+    # Chunk IDs are long, and copying them back is slow output. Label candidates A, B, C... instead.
+    labels = short_labels(len(candidates))
+    if RERANKER == "decision":
+        relevance, llm_call = await score_with_decision_model(question, labels, candidates, missing)
+        min_relevance = DECISION_MIN_RELEVANCE
+    else:
+        relevance, llm_call = await score_with_chat_model(question, labels, candidates, missing)
+        min_relevance = MIN_RELEVANCE
     ranked = sorted(
         (
-            {**candidate, "llm_relevance": relevance[candidate["id"]]}
-            for candidate in candidates
-            if relevance.get(candidate["id"], 0) >= MIN_RELEVANCE
+            {**candidate, "relevance": relevance[label]}
+            for label, candidate in zip(labels, candidates)
+            if relevance.get(label, 0) >= min_relevance
         ),
-        key=lambda candidate: candidate["llm_relevance"],
+        key=lambda candidate: candidate["relevance"],
         reverse=True,
     )[:MAX_EVIDENCE]
     activity.record(
-        "llm_reranking", started, usage, round=round_number, candidate_count=len(candidates), kept_count=len(ranked)
+        "reranking", started, llm_call, round=round_number, candidate_count=len(candidates), kept_count=len(ranked)
     )
     return ranked
 
@@ -236,11 +351,13 @@ async def reflect(
             "evidence": [{"title": item["title"], "content": item["content"]} for item in evidence],
         }
     )
-    reflection, usage = await ask_llm(REFLECTION_INSTRUCTIONS, prompt, Reflection)
+    # Low effort measured best: "none" missed multi-hop gaps (a lot code that needs another lookup),
+    # while medium and high were no more accurate and took up to twice as long.
+    reflection, llm_call = await ask_llm(REFLECTION_INSTRUCTIONS, prompt, Reflection, reasoning_effort="low")
     activity.record(
         "reflection",
         started,
-        usage,
+        llm_call,
         round=round_number,
         sufficient=reflection.sufficient,
         missing=reflection.missing,
@@ -257,12 +374,13 @@ async def search_knowledge(
     activity = ActivityLog()
 
     started = time.perf_counter()
-    plan, usage = await ask_llm(PLANNER_INSTRUCTIONS, question, QueryPlan)
-    activity.record("query_planning", started, usage, searches=describe_searches(plan.searches))
+    plan, llm_call = await ask_llm(PLANNER_INSTRUCTIONS, question, QueryPlan)
+    activity.record("query_planning", started, llm_call, searches=describe_searches(plan.searches))
 
     planned_searches = plan.searches
     searched: list[str] = []
     evidence: list[dict[str, Any]] = []
+    missing: str | None = None
     for round_number in range(1, MAX_ROUNDS + 1):
         result_lists = await run_searches(planned_searches, activity, round_number)
         searched += [planned.query for planned in planned_searches]
@@ -270,8 +388,11 @@ async def search_knowledge(
         known_ids = {item["id"] for item in evidence}
         new_candidates = [result for result in combine_results(result_lists) if result["id"] not in known_ids]
         if new_candidates:
-            evidence += await rerank(question, new_candidates, activity, round_number)
-            evidence = sorted(evidence, key=lambda item: item["llm_relevance"], reverse=True)[:MAX_EVIDENCE]
+            ranked = await rerank(question, new_candidates, activity, round_number, missing)
+            # Follow-up results fill a gap the earlier evidence left, so they get up to half the slots
+            # instead of competing on score with evidence for other parts of the question.
+            follow_up = ranked[: MAX_EVIDENCE // 2] if evidence else ranked
+            evidence = follow_up + evidence[: MAX_EVIDENCE - len(follow_up)]
 
         if round_number == MAX_ROUNDS:
             break
@@ -279,6 +400,7 @@ async def search_knowledge(
         if reflection.sufficient or not reflection.follow_up_searches:
             break
         planned_searches = reflection.follow_up_searches
+        missing = reflection.missing
 
     return {"evidence": evidence, "activity": activity.steps}
 
@@ -302,6 +424,7 @@ async def main() -> None:
     finally:
         for search_client in search_clients.values():
             await search_client.close()
+        await decision_client.aclose()
         await credential.close()
 
 

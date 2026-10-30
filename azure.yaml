@@ -120,6 +120,8 @@ services:
         value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
       - name: FOUNDRY_IQ_SEARCH_ENDPOINT
         value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+      - name: FOUNDRY_DECISION_DEPLOYMENT_NAME
+        value: ${FOUNDRY_DECISION_DEPLOYMENT_NAME}
     kind: hosted
     name: diy-llm-reranking
     protocols:
@@ -142,6 +144,8 @@ services:
         value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
       - name: FOUNDRY_IQ_SEARCH_ENDPOINT
         value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+      - name: FOUNDRY_DECISION_DEPLOYMENT_NAME
+        value: ${FOUNDRY_DECISION_DEPLOYMENT_NAME}
     kind: hosted
     name: diy-reflection
     protocols:
@@ -164,6 +168,8 @@ services:
         value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
       - name: FOUNDRY_IQ_SEARCH_ENDPOINT
         value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+      - name: FOUNDRY_DECISION_DEPLOYMENT_NAME
+        value: ${FOUNDRY_DECISION_DEPLOYMENT_NAME}
     kind: hosted
     name: diy-complexity-classifier
     protocols:

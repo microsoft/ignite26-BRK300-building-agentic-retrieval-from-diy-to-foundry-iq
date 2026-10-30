@@ -330,6 +330,7 @@ function activityLabel(activity) {
     "diy:query_planning": "Query planning",
     "diy:parallel_search": "Parallel search",
     "diy:llm_reranking": "LLM reranking",
+    "diy:reranking": "Reranking",
     "diy:reflection": "Reflection",
     "diy:complexity_routing": "Complexity routing",
   })[activity.type] || activity.type || "Activity";
@@ -571,6 +572,7 @@ function appendSearchTable(container, searches) {
 
 function appendDiyActivityDetails(details, activity) {
   appendActivityFact(details, "Model", activity.model);
+  appendActivityFact(details, "Reasoning effort", activity.reasoning_effort);
   switch (activity.type) {
     case "diyToolCall":
       appendActivityFact(details, "Tool", activity.name);
@@ -590,6 +592,7 @@ function appendDiyActivityDetails(details, activity) {
       appendSearchTable(details, activity.searches);
       break;
     case "diy:llm_reranking":
+    case "diy:reranking":
       appendActivityFact(details, "Kept", `${activity.kept_count} of ${activity.candidate_count} results`);
       break;
     case "diy:reflection":
@@ -599,6 +602,7 @@ function appendDiyActivityDetails(details, activity) {
       break;
     case "diy:complexity_routing":
       appendActivityFact(details, "Route", activity.route);
+      appendActivityFact(details, "Agentic probability", activity.agentic_probability);
       appendActivityFact(details, "Reason", activity.reason);
       break;
   }
@@ -611,6 +615,7 @@ function normalizeDiyActivity(toolCalls) {
       ...entry,
       type: `diy:${entry.step}`,
       elapsedMs: entry.elapsed_ms,
+      startedAtMs: entry.started_at_ms,
       inputTokens: entry.input_tokens,
       outputTokens: entry.output_tokens,
     })),
@@ -677,6 +682,77 @@ function diyMetric(label, value) {
   return metric;
 }
 
+function formatDuration(ms) {
+  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+
+// Gaps this long between retrieval steps are the agent's own model calls, not retrieval work.
+const AGENT_GAP_MS = 250;
+
+function waterfallSegments(result, activities) {
+  const timed = activities.filter((activity) => Number.isFinite(activity.elapsedMs));
+  const kindOf = (activity) => (activity.inputTokens ? "llm" : "search");
+  const hasStarts = Number.isFinite(result.startedAtMs) && timed.every((activity) => Number.isFinite(activity.startedAtMs));
+  if (!hasStarts) {
+    let cursor = 0;
+    return timed.map((activity) => {
+      const segment = { label: activityLabel(activity), start: cursor, duration: activity.elapsedMs, kind: kindOf(activity) };
+      cursor += activity.elapsedMs;
+      return segment;
+    });
+  }
+
+  const segments = [];
+  let cursor = 0;
+  timed.forEach((activity) => {
+    const start = Math.max(0, activity.startedAtMs - result.startedAtMs);
+    if (start - cursor > AGENT_GAP_MS) {
+      const label = segments.length ? "Agent model: decides to search again" : "Agent model: decides to search";
+      segments.push({ label, start: cursor, duration: start - cursor, kind: "agent" });
+    }
+    segments.push({ label: activityLabel(activity), start, duration: activity.elapsedMs, kind: kindOf(activity) });
+    cursor = Math.max(cursor, start + activity.elapsedMs);
+  });
+  if (result.elapsedMs - cursor > AGENT_GAP_MS) {
+    segments.push({ label: "Agent model: writes answer", start: cursor, duration: result.elapsedMs - cursor, kind: "agent" });
+  }
+  return segments;
+}
+
+function renderWaterfall(result, activities) {
+  const segments = waterfallSegments(result, activities);
+  if (!segments.length) return null;
+  const span = Math.max(result.elapsedMs || 0, ...segments.map((segment) => segment.start + segment.duration));
+
+  const chart = element("div", "waterfall");
+  chart.setAttribute("aria-label", "Latency waterfall");
+  const heading = element("div", "waterfall-heading");
+  heading.append(element("strong", "", "Latency waterfall"), element("span", "", `${formatDuration(span)} total`));
+  chart.append(heading);
+
+  for (const segment of segments) {
+    const row = element("div", `waterfall-row waterfall-${segment.kind}`);
+    const track = element("div", "waterfall-track");
+    const bar = element("span", "waterfall-bar");
+    bar.style.left = `${(segment.start / span) * 100}%`;
+    bar.style.width = `${(segment.duration / span) * 100}%`;
+    bar.title = `${segment.label}: starts at ${formatDuration(segment.start)}, takes ${formatDuration(segment.duration)}`;
+    track.append(bar);
+    row.append(element("span", "waterfall-label", segment.label), track, element("span", "waterfall-duration", formatDuration(segment.duration)));
+    chart.append(row);
+  }
+
+  const legend = element("div", "waterfall-legend");
+  for (const [kind, label] of [["search", "Search"], ["llm", "Model call in retrieval"], ["agent", "Agent model"]]) {
+    if (!segments.some((segment) => segment.kind === kind)) continue;
+    const item = element("span", `waterfall-key waterfall-${kind}`);
+    item.append(element("i"), document.createTextNode(label));
+    legend.append(item);
+  }
+  chart.append(legend);
+  return chart;
+}
+
 function renderDiyResult(container, result) {
   const activities = normalizeDiyActivity(result.toolCalls || []);
   const llmSteps = activities.filter((activity) => activity.inputTokens);
@@ -692,7 +768,7 @@ function renderDiyResult(container, result) {
   metrics.append(
     diyMetric("Total time", `${(result.elapsedMs / 1000).toFixed(1)} s`),
     diyMetric("Searches", String(searchCount)),
-    diyMetric("LLM calls in retrieval", String(llmSteps.length)),
+    diyMetric("Model calls in retrieval", String(llmSteps.length)),
     diyMetric("Retrieval tokens", retrievalTokens.toLocaleString()),
     diyMetric("Agent tokens", agentTokens.toLocaleString()),
   );
@@ -702,6 +778,8 @@ function renderDiyResult(container, result) {
 
   const activitySection = element("section", "kb-section");
   activitySection.append(element("h3", "", `Activity log · ${activities.length} steps`));
+  const waterfall = renderWaterfall(result, activities);
+  if (waterfall) activitySection.append(waterfall);
   activitySection.append(renderActivityLog(activities));
 
   const evidence = (result.toolCalls || []).flatMap((call) => call.evidence || []);
@@ -714,7 +792,11 @@ function renderDiyResult(container, result) {
     title.append(element("strong", "", item.title || "Untitled"));
     if (item.index) title.append(element("span", "resource-kind", item.index));
     row.append(title);
-    if (item.llm_relevance !== undefined) row.append(element("span", "score", `LLM relevance ${item.llm_relevance}/3`));
+    const relevance = item.relevance ?? item.llm_relevance;
+    if (relevance !== undefined) {
+      const shown = Number.isInteger(relevance) ? relevance : Number(relevance).toFixed(1);
+      row.append(element("span", "score", `Relevance ${shown}/3`));
+    }
     if (item.reranker_score !== undefined) row.append(element("span", "score score-secondary", `Reranker ${Number(item.reranker_score).toFixed(2)}`));
     const content = element("details", "config-details diy-evidence-content");
     content.append(element("summary", "", "Show chunk"), element("p", "reference-excerpt", item.content || ""));

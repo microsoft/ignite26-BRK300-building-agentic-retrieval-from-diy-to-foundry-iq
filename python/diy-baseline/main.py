@@ -63,9 +63,11 @@ async def search_knowledge(
     """Search Cocoarynth's quality records with hybrid search and semantic ranking."""
     started = time.perf_counter()
     results = await hybrid_search(query)
+    elapsed = time.perf_counter() - started
     activity = {
         "step": "search",
-        "elapsed_ms": round((time.perf_counter() - started) * 1000),
+        "elapsed_ms": round(elapsed * 1000),
+        "started_at_ms": round((time.time() - elapsed) * 1000),
         "index": INDEX_NAME,
         "query": query,
         "result_count": len(results),

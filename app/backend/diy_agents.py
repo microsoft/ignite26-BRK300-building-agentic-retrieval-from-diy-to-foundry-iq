@@ -80,7 +80,7 @@ DIY_STEPS = (
     DiyStep(
         "diy-llm-reranking",
         "LLM reranking",
-        "An LLM scores the merged results and keeps the most relevant evidence.",
+        "A ranking model (Microsoft-Decision-1) scores the merged results and keeps the most relevant evidence.",
         8095,
         MULTI_SOURCE_EXAMPLES,
     ),
@@ -91,13 +91,16 @@ DIY_STEPS = (
         8096,
         (
             Example("Needs reflection: late Madagascar launch", MADAGASCAR_LAUNCH),
-            Example("One round: grey Ghana bars", GHANA_BARS),
+            Example(
+                "One round: organic seal",
+                "Can Cocoarynth print the organic seal on the Peru Bagua 70% bars packed in September 2026?",
+            ),
         ),
     ),
     DiyStep(
         "diy-complexity-classifier",
         "Complexity classifier",
-        "An LLM routes simple questions to one direct search and complex ones to the agentic path.",
+        "A classifier (Microsoft-Decision-1) routes simple questions to one direct search and complex ones to the agentic path.",
         8097,
         (
             Example("Simple: storage temperature", "What is the recommended storage temperature for chocolate bars?"),
@@ -190,6 +193,7 @@ def summarize_response(response: dict[str, Any]) -> dict[str, Any]:
 
 
 async def ask(step: DiyStep, question: str) -> dict[str, Any]:
+    started_at_ms = round(time.time() * 1000)
     started = time.perf_counter()
     async with httpx2.AsyncClient(timeout=AGENT_TIMEOUT_SECONDS) as client:
         try:
@@ -199,6 +203,7 @@ async def ask(step: DiyStep, question: str) -> dict[str, Any]:
     response.raise_for_status()
     return {
         "step": step.name,
+        "startedAtMs": started_at_ms,
         "elapsedMs": round((time.perf_counter() - started) * 1000),
         **summarize_response(response.json()),
     }

@@ -8,7 +8,7 @@ param environmentName string
 @description('Primary Azure region for all resources.')
 param location string
 
-@description('Azure AI Search SKU.')
+@description('Foundry IQ search service SKU.')
 @allowed([
   'basic'
   'standard'
@@ -54,6 +54,7 @@ output AZURE_AI_PROJECT_ID string = resources.outputs.aiProjectId
 output AZURE_AI_PROJECT_ENDPOINT string = resources.outputs.aiProjectEndpoint
 output FOUNDRY_PROJECT_ENDPOINT string = resources.outputs.aiProjectEndpoint
 output FOUNDRY_MODEL_DEPLOYMENT_NAME string = resources.outputs.chatDeploymentName
+output FOUNDRY_DECISION_DEPLOYMENT_NAME string = resources.outputs.decisionDeploymentName
 output AZURE_TENANT_ID string = tenant().tenantId
 output AZURE_CONTENT_UNDERSTANDING_DEPLOYMENT string = resources.outputs.contentUnderstandingDeploymentName
 output AZURE_CONTENT_UNDERSTANDING_MODEL string = resources.outputs.contentUnderstandingModelName

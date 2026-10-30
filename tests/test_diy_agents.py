@@ -125,6 +125,8 @@ class AskTests(unittest.TestCase):
         self.assertEqual(f"http://127.0.0.1:{step.port}/responses", str(requests[0].url))
         self.assertEqual({"input": "Which farms grew the cacao?"}, json.loads(requests[0].content))
         self.assertEqual("diy-reflection", result["step"])
+        self.assertIsInstance(result["startedAtMs"], int)
+        self.assertGreaterEqual(result["elapsedMs"], 0)
         self.assertEqual("Madagascar won.", result["answer"])
 
 

@@ -85,7 +85,7 @@ async def mcp_service_error(_: Request, error: McpRetrievalError) -> JSONRespons
         content={
             "detail": (
                 "The MCP retrieval endpoint is unavailable. Confirm that the selected knowledge base "
-                "has been provisioned and that the application identity can query Azure AI Search."
+                "has been provisioned and that the application identity can query Foundry IQ."
             )
         },
     )

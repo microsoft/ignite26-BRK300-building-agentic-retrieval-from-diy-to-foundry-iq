@@ -284,6 +284,7 @@ DIY_AGENTS = {
 
 DIY_ANSWER = {
     "step": "diy-reflection",
+    "startedAtMs": 1_000_000,
     "elapsedMs": 41_500,
     "answer": (
         "The wrapper lot **EC26-0811** traces to bean lot EC26-L07. [batch-record-ec26-0811.pdf]\n\n"
@@ -298,7 +299,9 @@ DIY_ANSWER = {
                 {
                     "step": "query_planning",
                     "elapsed_ms": 2100,
+                    "started_at_ms": 1_003_000,
                     "model": "gpt-5.5",
+                    "reasoning_effort": "medium",
                     "input_tokens": 450,
                     "output_tokens": 60,
                     "searches": [
@@ -311,6 +314,7 @@ DIY_ANSWER = {
                 {
                     "step": "parallel_search",
                     "elapsed_ms": 800,
+                    "started_at_ms": 1_005_100,
                     "round": 1,
                     "searches": [
                         {"index": "cocoarynth-origins-index", "query": "Pantry Lane Ecuador wrapper farms", "result_count": 5},
@@ -324,6 +328,7 @@ DIY_ANSWER = {
                 {
                     "step": "reflection",
                     "elapsed_ms": 5900,
+                    "started_at_ms": 1_005_900,
                     "round": 1,
                     "input_tokens": 4700,
                     "output_tokens": 300,
@@ -341,7 +346,7 @@ DIY_ANSWER = {
                     "title": "batch-record-ec26-0811.pdf",
                     "content": "Batch EC26-0811 used 250 kg of bean lot EC26-L07.",
                     "reranker_score": 2.91,
-                    "llm_relevance": 3,
+                    "relevance": 3,
                 }
             ],
         }
@@ -846,7 +851,7 @@ def test_diy_agents_page_shows_answer_and_activity_log(
     )
     expect(output.locator(".diy-metric").filter(has_text="Total time")).to_contain_text("41.5 s")
     expect(output.locator(".diy-metric").filter(has_text="Searches")).to_contain_text("2")
-    expect(output.locator(".diy-metric").filter(has_text="LLM calls in retrieval")).to_contain_text("2")
+    expect(output.locator(".diy-metric").filter(has_text="Model calls in retrieval")).to_contain_text("2")
     expect(output.locator(".diy-metric").filter(has_text="Retrieval tokens")).to_contain_text("5,510")
     expect(output.locator(".diy-metric").filter(has_text="Agent tokens")).to_contain_text("3,500")
 
@@ -861,6 +866,8 @@ def test_diy_agents_page_shows_answer_and_activity_log(
     )
     expect(rows.nth(3).locator(".diy-source")).to_have_text("cocoarynth-quality-index")
     expect(rows.nth(1)).to_contain_text("Model:gpt-5.5")
+    expect(rows.nth(1)).to_contain_text("Reasoning effort:medium")
+    expect(rows.nth(2)).not_to_contain_text("Reasoning effort")
     expect(output.get_by_text("View step data")).to_have_count(0)
     expect(rows.nth(2)).to_contain_text("Parallel search · round 1")
     expect(rows.nth(2).locator(".diy-search-row")).to_have_count(2)
@@ -870,11 +877,33 @@ def test_diy_agents_page_shows_answer_and_activity_log(
     expect(rows.nth(3).locator(".token-meter")).to_contain_text("5,000")
     expect(rows.nth(3).locator(".activity-elapsed")).to_have_text("5,900 ms")
 
+    waterfall = output.locator(".waterfall")
+    expect(waterfall).to_contain_text("41.5 s total")
+    waterfall_rows = waterfall.locator(".waterfall-row")
+    expect(waterfall_rows.locator(".waterfall-label")).to_have_text(
+        [
+            "Agent model: decides to search",
+            "Query planning",
+            "Parallel search · round 1",
+            "Reflection · round 1",
+            "Agent model: writes answer",
+        ]
+    )
+    expect(waterfall_rows.locator(".waterfall-duration")).to_have_text(["3.0 s", "2.1 s", "800 ms", "5.9 s", "29.7 s"])
+    expect(waterfall_rows.nth(0)).to_have_class(re.compile(r"waterfall-agent"))
+    expect(waterfall_rows.nth(1)).to_have_class(re.compile(r"waterfall-llm"))
+    expect(waterfall_rows.nth(2)).to_have_class(re.compile(r"waterfall-search"))
+    bar_lefts = waterfall_rows.locator(".waterfall-bar").evaluate_all("bars => bars.map(bar => parseFloat(bar.style.left))")
+    assert bar_lefts == sorted(bar_lefts) and bar_lefts[0] == 0
+    assert abs(bar_lefts[1] - 3000 / 41500 * 100) < 0.01
+    expect(waterfall.locator(".waterfall-key")).to_have_text(["Search", "Model call in retrieval", "Agent model"])
+    assert waterfall.evaluate("node => node.compareDocumentPosition(document.querySelector('#diy-output .activity-table')) & Node.DOCUMENT_POSITION_FOLLOWING")
+
     evidence = output.locator(".reference-item")
     expect(evidence).to_have_count(1)
     expect(evidence).to_contain_text("batch-record-ec26-0811.pdf")
     expect(evidence.locator(".resource-kind")).to_have_text("cocoarynth-quality-index")
-    expect(evidence).to_contain_text("LLM relevance 3/3")
+    expect(evidence).to_contain_text("Relevance 3/3")
     expect(evidence).to_contain_text("Reranker 2.91")
     assert payloads == [{"step": "diy-reflection", "question": DIY_AGENTS["steps"][1]["examples"][0]["question"]}]
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
@@ -922,8 +951,34 @@ def test_diy_single_index_steps_show_the_index(page: Page, live_server_url: str,
                             {"index": "cocoarynth-quality-index", "query": "Madagascar lot hold", "result_count": 5},
                         ],
                     },
+                    {
+                        "step": "complexity_routing",
+                        "elapsed_ms": 470,
+                        "model": "decision-1",
+                        "input_tokens": 300,
+                        "output_tokens": 1,
+                        "route": "agentic",
+                        "agentic_probability": 0.97,
+                    },
+                    {
+                        "step": "reranking",
+                        "elapsed_ms": 900,
+                        "model": "decision-1",
+                        "input_tokens": 12000,
+                        "output_tokens": 20,
+                        "candidate_count": 10,
+                        "kept_count": 4,
+                    },
                 ],
-                "evidence": [],
+                "evidence": [
+                    {
+                        "id": "quality/1",
+                        "index": "cocoarynth-quality-index",
+                        "title": "hold-notice-mg26-l02.pdf",
+                        "content": "Moisture 8.6% at receipt.",
+                        "relevance": 2.4137,
+                    }
+                ],
             }
         ],
     }
@@ -937,6 +992,17 @@ def test_diy_single_index_steps_show_the_index(page: Page, live_server_url: str,
 
     rows = page.locator("#diy-output .activity-row")
     expect(rows.nth(1)).to_contain_text("Index:cocoarynth-quality-index")
+    waterfall_rows = page.locator("#diy-output .waterfall-row")
+    expect(waterfall_rows.locator(".waterfall-label")).to_have_text(["Search", "Parallel search", "Complexity routing", "Reranking"])
+    expect(waterfall_rows.locator(".waterfall-agent")).to_have_count(0)
     search_rows = rows.nth(2).locator(".diy-search-row")
     expect(search_rows).to_have_count(2)
     expect(search_rows.locator(".diy-source")).to_have_text(["cocoarynth-quality-index", "cocoarynth-quality-index"])
+
+    expect(rows.nth(3)).to_contain_text("Complexity routing")
+    expect(rows.nth(3)).to_contain_text("Model:decision-1")
+    expect(rows.nth(3)).to_contain_text("Agentic probability:0.97")
+    expect(rows.nth(3)).not_to_contain_text("Reasoning effort")
+    expect(rows.nth(4)).to_contain_text("Reranking")
+    expect(rows.nth(4)).to_contain_text("Kept:4 of 10 results")
+    expect(page.locator("#diy-output .reference-item")).to_contain_text("Relevance 2.4/3")
