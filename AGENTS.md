@@ -88,11 +88,11 @@ azd ai agent run diy-baseline --no-client
 
 ```shell
 # diy-baseline: one search is enough for a single-fact question (M6).
-azd ai agent invoke diy-baseline --local --new-conversation "Which origin won Cocoarynth's September 2026 tasting panel, and what did the tasters notice about it?"
+azd ai agent invoke diy-baseline --local --new-conversation "Which origin won Cocoarynth's September 2026 single-origin bar tasting panel, and what were its flavor notes?"
 
-# diy-query-decomposition: two information needs in one index, searched in parallel. The baseline usually
-# answers the tasting part from a small pre-release check and misses the September 2026 tasting panel.
-azd ai agent invoke diy-query-decomposition --local --new-conversation "What did tasters think of the Madagascar beans, and why was the lot held on arrival?"
+# diy-query-decomposition: two information needs in one index, searched in parallel. The baseline's one search
+# returns only hold records, so it misses the September 2026 tasting panel's notes on the bar.
+azd ai agent invoke diy-query-decomposition --local --new-conversation "What did the tasting panel think of the Madagascar bar, and why was its bean lot held on arrival?"
 
 # diy-multi-source-fanout, diy-source-selection, diy-llm-reranking: evidence spread across indexes (M1).
 azd ai agent invoke diy-multi-source-fanout --local --new-conversation "Why did the Ghana bars sold at Larkspur Market turn grey and dusty-looking in July 2026, and was the batch itself bad?"

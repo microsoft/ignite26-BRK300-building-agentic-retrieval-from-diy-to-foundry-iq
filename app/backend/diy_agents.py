@@ -25,9 +25,9 @@ class DiyStep:
 
 TASTING_PANEL = Example(
     "Succeeds: tasting panel winner",
-    "Which origin won Cocoarynth's September 2026 tasting panel, and what did the tasters notice about it?",
+    "Which origin won Cocoarynth's September 2026 single-origin bar tasting panel, and what were its flavor notes?",
 )
-MADAGASCAR_TASTERS = "What did tasters think of the Madagascar beans, and why was the lot held on arrival?"
+MADAGASCAR_PANEL = "What did the tasting panel think of the Madagascar bar, and why was its bean lot held on arrival?"
 GHANA_BARS = (
     "Why did the Ghana bars sold at Larkspur Market turn grey and dusty-looking in July 2026, "
     "and was the batch itself bad?"
@@ -51,7 +51,7 @@ DIY_STEPS = (
         "Baseline",
         "One hybrid search with semantic ranking over the quality index.",
         8091,
-        (TASTING_PANEL, Example("Fails: Madagascar tasters and hold", MADAGASCAR_TASTERS)),
+        (TASTING_PANEL, Example("Fails: Madagascar panel and hold", MADAGASCAR_PANEL)),
     ),
     DiyStep(
         "diy-query-decomposition",
@@ -59,7 +59,7 @@ DIY_STEPS = (
         "An LLM splits the question into focused queries that run in parallel.",
         8092,
         (
-            Example("Succeeds: Madagascar tasters and hold", MADAGASCAR_TASTERS),
+            Example("Succeeds: Madagascar panel and hold", MADAGASCAR_PANEL),
             Example("Fails: grey Ghana bars", GHANA_BARS),
         ),
     ),

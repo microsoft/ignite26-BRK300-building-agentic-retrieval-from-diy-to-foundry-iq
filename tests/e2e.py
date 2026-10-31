@@ -264,7 +264,7 @@ DIY_AGENTS = {
             "port": 8091,
             "examples": [
                 {"label": "Succeeds: tasting panel winner", "question": "Which origin won the tasting panel?"},
-                {"label": "Fails: Madagascar tasters and hold", "question": "What did tasters think of the beans?"},
+                {"label": "Fails: Madagascar panel and hold", "question": "What did the tasting panel think of the bar?"},
             ],
             "running": False,
         },
@@ -813,9 +813,9 @@ def test_diy_agents_page_shows_answer_and_activity_log(
     expect(page.locator("#diy-hint")).to_contain_text("python -m scripts.run_diy_agents")
     expect(page.locator("#diy-question")).to_have_value("Which origin won the tasting panel?")
     example = page.locator("#diy-example")
-    expect(example.locator("option")).to_have_text(["Succeeds: tasting panel winner", "Fails: Madagascar tasters and hold"])
-    example.select_option(label="Fails: Madagascar tasters and hold")
-    expect(page.locator("#diy-question")).to_have_value("What did tasters think of the beans?")
+    expect(example.locator("option")).to_have_text(["Succeeds: tasting panel winner", "Fails: Madagascar panel and hold"])
+    example.select_option(label="Fails: Madagascar panel and hold")
+    expect(page.locator("#diy-question")).to_have_value("What did the tasting panel think of the bar?")
 
     page.locator('.diy-step[data-step="diy-reflection"]').click()
     expect(page.locator("#diy-hint")).to_be_hidden()

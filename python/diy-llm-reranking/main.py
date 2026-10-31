@@ -9,7 +9,7 @@ import time
 from typing import Annotated, Any, Literal
 
 import httpx
-from agent_framework import Agent, Message, tool
+from agent_framework import Agent, FunctionInvocationConfiguration, Message, tool
 from agent_framework.foundry import FoundryChatClient
 from agent_framework.openai import OpenAIChatOptions
 from agent_framework_foundry_hosting import ResponsesHostServer
@@ -74,6 +74,8 @@ chat_client = FoundryChatClient(
     project_endpoint=PROJECT_ENDPOINT,
     model=MODEL_DEPLOYMENT_NAME,
     credential=credential,
+    # Allow one search_knowledge call per question, so the agent can't add searches of its own.
+    function_invocation_configuration=FunctionInvocationConfiguration(max_function_calls=1),
 )
 decision_client = httpx.AsyncClient(timeout=60)
 
