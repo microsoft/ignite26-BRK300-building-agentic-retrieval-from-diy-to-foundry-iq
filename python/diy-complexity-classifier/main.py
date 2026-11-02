@@ -53,6 +53,8 @@ SourceName = Literal[
 ]
 MIN_RELEVANCE = 2
 MAX_EVIDENCE = 8
+# The direct route skips reranking, so it passes fewer chunks to keep lower-ranked noise out of the answer.
+DIRECT_MAX_EVIDENCE = 5
 MAX_ROUNDS = 3
 
 # "decision" scores relevance with Microsoft-Decision-1; "chat" asks the chat model. Decision-1 measured
@@ -418,7 +420,7 @@ async def direct_retrieval(question: str, activity: ActivityLog) -> list[dict[st
     """Search every source once with the question as written, with no extra model calls."""
     direct_search = PlannedSearch(query=question, sources=list(get_args(SourceName)))
     result_lists = await run_searches([direct_search], activity, round_number=1)
-    return combine_results(result_lists)[:MAX_EVIDENCE]
+    return combine_results(result_lists)[:DIRECT_MAX_EVIDENCE]
 
 
 async def agentic_retrieval(question: str, activity: ActivityLog) -> list[dict[str, Any]]:
