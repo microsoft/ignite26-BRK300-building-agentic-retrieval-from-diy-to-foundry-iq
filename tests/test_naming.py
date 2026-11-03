@@ -1,28 +1,52 @@
 import unittest
 
-from app.backend.naming import shared_resources
+from app.backend.naming import (
+    KNOWLEDGE_BASE,
+    KNOWLEDGE_SOURCES,
+    KNOWLEDGE_SOURCES_BY_KEY,
+    OBSOLETE_KNOWLEDGE_BASES,
+)
 
 
-class SharedResourcesTests(unittest.TestCase):
-    def test_builds_three_shared_knowledge_base_names(self) -> None:
-        resources = shared_resources()
+class KnowledgeSourceNamingTests(unittest.TestCase):
+    def test_defines_six_sources_in_slide_order(self) -> None:
+        self.assertEqual(
+            [(source.key, source.name) for source in KNOWLEDGE_SOURCES],
+            [
+                ("origins", "Farms & harvests"),
+                ("quality", "Quality checks"),
+                ("logistics-retail", "Shipping & sales"),
+                ("policies", "Policies"),
+                ("documents", "Origin Passport"),
+                ("engineering-practices", "Engineering"),
+            ],
+        )
+        self.assertEqual(set(KNOWLEDGE_SOURCES_BY_KEY), {source.key for source in KNOWLEDGE_SOURCES})
 
-        self.assertEqual(resources.document_source, "cocoarynth-documents-source")
-        self.assertEqual(resources.document_index, "cocoarynth-documents-index")
-        self.assertEqual(resources.document_knowledge_base, "cocoarynth-kb-docs")
+    def test_keeps_existing_index_container_and_source_names(self) -> None:
         self.assertEqual(
-            resources.engineering_practice_source,
-            "cocoarynth-engineering-practices-source",
+            [(source.index, source.container, source.knowledge_source) for source in KNOWLEDGE_SOURCES],
+            [
+                ("cocoarynth-origins-index", "cocoarynth-origins", "cocoarynth-origins-source"),
+                ("cocoarynth-quality-index", "cocoarynth-quality", "cocoarynth-quality-source"),
+                (
+                    "cocoarynth-logistics-retail-index",
+                    "cocoarynth-logistics-retail",
+                    "cocoarynth-logistics-retail-source",
+                ),
+                ("cocoarynth-policies-index", "cocoarynth-policies", "cocoarynth-policies-source"),
+                ("cocoarynth-documents-index", "knowledge", "cocoarynth-documents-source"),
+                (
+                    "cocoarynth-engineering-practices-index",
+                    "engineering-practices",
+                    "cocoarynth-engineering-practices-source",
+                ),
+            ],
         )
-        self.assertEqual(
-            resources.engineering_practice_index,
-            "cocoarynth-engineering-practices-index",
-        )
-        self.assertEqual(
-            resources.engineering_practice_knowledge_base,
-            "cocoarynth-kb-engineering-practices",
-        )
-        self.assertEqual(resources.combined_knowledge_base, "cocoarynth-kb-all")
+
+    def test_uses_one_knowledge_base(self) -> None:
+        self.assertEqual(KNOWLEDGE_BASE, "cocoarynth-kb-all")
+        self.assertEqual(OBSOLETE_KNOWLEDGE_BASES, ("cocoarynth-kb-docs", "cocoarynth-kb-engineering-practices"))
 
 
 if __name__ == "__main__":

@@ -7,14 +7,13 @@ from openai import OpenAI
 from playwright.sync_api import Page, expect
 
 from app.backend.config import Settings
-
+from app.backend.naming import KNOWLEDGE_SOURCES
 
 expect.set_options(timeout=180_000)
 
-PART3_QUESTION = "What must change in the Origin Passport export for the Mapayça Markets pilot?"
-PART4_QUESTION = (
-    "What product requirements and company engineering standards should guide CSV Origin Passport support? "
-    "Cite evidence from both corpora."
+KNOWLEDGE_BASE_QUESTION = (
+    "Why did the Madagascar limited-edition bar with cacao nibs launch on 1 October instead of 1 September, "
+    "and what happened at the estate to start the delay?"
 )
 AZURE_OPENAI_SCOPE = "https://cognitiveservices.azure.com/.default"
 Judge = Callable[[str, str, str, str], str]
@@ -74,85 +73,60 @@ def azure_openai_judge() -> Generator[Judge, None, None]:
     credential.close()
 
 
-def test_part3_live_workflow(page: Page, live_portal_url: str, azure_openai_judge: Judge) -> None:
-    page.goto(live_portal_url)
-    corpus = page.locator(".nav-group").filter(has_text="Corpus 1: Project requirements")
+def test_sources_live_workflow(page: Page, live_portal_url: str) -> None:
+    page.goto(f"{live_portal_url}sources/documents/documents")
+    sources = page.locator(".nav-group").filter(has_text="Knowledge sources")
 
-    corpus.get_by_role("button", name="Browse documents", exact=True).click()
     expect(page.locator("#document-list")).to_contain_text(
         "mapayca-markets-traceability-pilot-requirements.pdf"
     )
 
-    corpus.get_by_role("button", name="View document chunks", exact=True).click()
+    sources.get_by_role("button", name="View document chunks", exact=True).click()
     page.locator("#document-select").select_option(
         label="mapayca-markets-traceability-pilot-requirements.pdf"
     )
     expect(page.locator("#chunk-list article").first).to_be_visible()
     expect(page.locator("#chunk-list")).to_contain_text("page_number_from")
 
-    corpus.get_by_role("button", name="Search the index", exact=True).click()
-    for query in ("CSV export requirements", "information excluded from wholesale exports"):
-        page.locator("#search-query").fill(query)
-        page.locator("#search-form").get_by_role("button", name="Search").click()
-        expect(page.locator("#search-summary")).to_contain_text("cocoarynth-documents-index")
-        expect(page.locator("#search-results article").first).to_be_visible()
-
-    corpus.get_by_role("button", name="Call over MCP", exact=True).click()
-    mcp_panel = page.locator("#documents-mcp")
-    expect(mcp_panel.locator(".mcp-strip code")).to_contain_text("cocoarynth-kb-docs")
-    mcp_panel.locator("textarea").fill(PART3_QUESTION)
-    mcp_panel.get_by_role("button", name="Call over MCP").click()
-
-    output = mcp_panel.locator(".mcp-output")
-    expect(output.locator(".mcp-content-block").first).to_be_visible()
-    expect(output).to_contain_text("MCP content")
-
-    verdict = azure_openai_judge(
-        PART3_QUESTION,
-        output.inner_text(),
-        output.inner_text(),
-        (
-            "PASS only if the retrieved evidence contains concrete Origin Passport export changes for the Mapayça "
-            "Markets pilot, is grounded in the project requirements, and displays at least one relevant citation."
-        ),
-    )
-    assert verdict.upper().startswith("PASS"), verdict
+    sources.get_by_role("button", name="Search the index", exact=True).click()
+    page.locator("#search-source").select_option(label="Quality checks")
+    page.locator("#search-form").get_by_role("button", name="Search").click()
+    expect(page.locator("#search-summary")).to_contain_text("cocoarynth-quality-index")
+    expect(page.locator("#search-results article").first).to_be_visible()
 
 
-def test_part4_live_workflow(page: Page, live_portal_url: str, azure_openai_judge: Judge) -> None:
+def test_knowledge_base_live_workflow(page: Page, live_portal_url: str, azure_openai_judge: Judge) -> None:
     page.goto(live_portal_url)
-    combined = page.locator(".nav-group").filter(has_text="Combined knowledge base")
-    combined.get_by_role("button", name="Configuration", exact=True).click()
+    knowledge_base = page.locator(".nav-group").filter(has_text="Knowledge base")
+    knowledge_base.get_by_role("button", name="Configuration", exact=True).click()
 
-    configuration = page.locator("#combined-kb-configuration")
+    configuration = page.locator("#kb-configuration-details")
     expect(configuration).to_contain_text("cocoarynth-kb-all")
-    for source_name, index_name in (
-        ("cocoarynth-documents-source", "cocoarynth-documents-index"),
-        ("cocoarynth-engineering-practices-source", "cocoarynth-engineering-practices-index"),
-    ):
-        source = configuration.locator(".source-row").filter(has_text=source_name)
-        expect(source.locator(".source-facts")).to_contain_text("KindsearchIndex")
-        expect(source.locator(".source-facts")).to_contain_text(index_name)
+    expect(configuration.locator(".source-row")).to_have_count(len(KNOWLEDGE_SOURCES))
+    for source in KNOWLEDGE_SOURCES:
+        facts = configuration.locator(".source-row").filter(has_text=source.knowledge_source).locator(".source-facts")
+        expect(facts).to_contain_text("KindsearchIndex")
+        expect(facts).to_contain_text(source.index)
 
-    combined.get_by_role("button", name="Query knowledge base", exact=True).click()
-    page.locator("#combined-kb textarea").fill(PART4_QUESTION)
-    page.locator("#combined-kb").get_by_role("button", name="Search combined KB").click()
+    knowledge_base.get_by_role("button", name="Query knowledge base", exact=True).click()
+    page.locator("#kb-query textarea").fill(KNOWLEDGE_BASE_QUESTION)
+    page.locator("#kb-query").get_by_role("button", name="Query knowledge base").click()
 
-    output = page.locator("#combined-kb .kb-output")
-    references = page.locator("#combined-kb .reference-list")
-    activity = page.locator("#combined-kb .activity-table")
+    output = page.locator("#kb-output")
+    references = output.locator(".reference-list")
+    activity = output.locator(".activity-table")
     expect(output.locator("article").first).to_be_visible()
     expect(references.locator("article").first).to_be_visible()
     expect(activity).to_contain_text("Index search")
 
     verdict = azure_openai_judge(
-        PART4_QUESTION,
+        KNOWLEDGE_BASE_QUESTION,
         output.inner_text(),
         references.inner_text(),
         (
-            "PASS only if the retrieved evidence includes both product requirements and engineering standards "
-            "relevant to CSV Origin Passport support, and the displayed references include evidence from both "
-            "project requirements and engineering practices."
+            "PASS only if the retrieved evidence explains why the Madagascar limited-edition launch moved from "
+            "1 September to 1 October and includes evidence about what happened at the estate, with at least "
+            "one relevant reference."
         ),
     )
     assert verdict.upper().startswith("PASS"), verdict

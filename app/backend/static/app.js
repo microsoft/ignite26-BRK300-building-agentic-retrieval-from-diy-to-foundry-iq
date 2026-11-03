@@ -41,21 +41,27 @@ function setLoading(container, message) {
   container.replaceChildren(element("div", "empty-state loading", message));
 }
 
+const sourcePages = ["documents", "chunks", "search"];
 const panelPaths = {
   home: "/",
-  documents: "/project-requirements",
-  chunks: "/project-requirements/chunks",
-  search: "/project-requirements/search",
-  "documents-mcp": "/project-requirements/mcp",
-  "engineering-practices": "/engineering-practices",
-  "engineering-practices-chunks": "/engineering-practices/chunks",
-  "engineering-practices-search": "/engineering-practices/search",
-  "engineering-practices-mcp": "/engineering-practices/mcp",
-  "combined-configuration": "/combined/configuration",
-  "combined-kb": "/combined/query",
-  "combined-mcp": "/combined/mcp",
+  "kb-configuration": "/knowledge-base/configuration",
+  "kb-query": "/knowledge-base/query",
   "diy-agents": "/diy-agents",
 };
+const exampleSearches = {
+  origins: "fermentation log for the Madagascar lot",
+  quality: "bean moisture test results on arrival",
+  "logistics-retail": "temperature logger readings during shipment",
+  policies: "recommended storage temperature for chocolate bars",
+  documents: "CSV export requirements",
+  "engineering-practices": "testing review rollout and monitoring standards",
+};
+const sourceState = { sources: [], key: null, documents: new Map(), loadId: 0 };
+
+function panelPath(target) {
+  if (sourcePages.includes(target) && sourceState.key) return `/sources/${sourceState.key}/${target}`;
+  return panelPaths[target] || "/";
+}
 
 function activatePanel(target, updateHistory = false) {
   const button = $(`.nav-item[data-target="${target}"]`);
@@ -64,97 +70,125 @@ function activatePanel(target, updateHistory = false) {
   $$(".nav-item, .panel").forEach((item) => item.classList.remove("active"));
   if (button) button.classList.add("active");
   panel.classList.add("active");
-  if (updateHistory) window.history.pushState({ target }, "", panelPaths[target]);
+  if (updateHistory) window.history.pushState({ target }, "", panelPath(target));
 }
 
-function activatePanelFromLocation() {
+function parseLocation() {
+  const sourceMatch = window.location.pathname.match(/^\/sources\/([^/]+)\/([^/]+)$/);
+  if (sourceMatch && sourcePages.includes(sourceMatch[2])) return { target: sourceMatch[2], key: sourceMatch[1] };
   const target = Object.entries(panelPaths).find(([, path]) => path === window.location.pathname)?.[0] || "home";
+  return { target, key: null };
+}
+
+function activePanelId() {
+  return $(".panel.active")?.id;
+}
+
+async function activatePanelFromLocation() {
+  const { target, key } = parseLocation();
   activatePanel(target);
+  if (key && key !== sourceState.key) await selectSource(key);
 }
 
 $$('.nav-item').forEach((button) => button.addEventListener("click", () => activatePanel(button.dataset.target, true)));
 window.addEventListener("popstate", activatePanelFromLocation);
-activatePanelFromLocation();
 
-const corpora = [
-  {
-    inventoryUrl: "/api/documents",
-    chunksUrl: "/api/documents/chunks",
-    searchUrl: "/api/documents/search",
-    list: "#document-list",
-    select: "#document-select",
-    chunkList: "#chunk-list",
-    chunkSummary: "#chunk-summary",
-    searchForm: "#search-form",
-    searchQuery: "#search-query",
-    searchResults: "#search-results",
-    searchSummary: "#search-summary",
-    selectionLabel: "Select a document",
-  },
-  {
-    inventoryUrl: "/api/engineering-practices",
-    chunksUrl: "/api/engineering-practices/chunks",
-    searchUrl: "/api/engineering-practices/search",
-    list: "#engineering-practices-list",
-    select: "#engineering-practices-select",
-    chunkList: "#engineering-practices-chunk-list",
-    chunkSummary: "#engineering-practices-chunk-summary",
-    searchForm: "#engineering-practices-search-form",
-    searchQuery: "#engineering-practices-search-query",
-    searchResults: "#engineering-practices-search-results",
-    searchSummary: "#engineering-practices-search-summary",
-    selectionLabel: "Select an engineering practice document",
-  },
-];
+function renderDocumentList(documents) {
+  const list = $("#document-list");
+  list.replaceChildren();
+  for (const document of documents) {
+    const link = element("a", "document-row");
+    link.href = document.url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    const identity = element("div", "document-identity");
+    identity.append(element("span", "file-type", "PDF"), element("strong", "", document.name));
+    const metadata = element("span", "document-meta", formatBytes(document.size));
+    if (document.lastModified) metadata.textContent += ` · ${new Date(document.lastModified).toLocaleDateString()}`;
+    link.append(identity, metadata, element("span", "open-mark", "↗"));
+    list.append(link);
+  }
+  if (!documents.length) list.append(element("div", "empty-state", "No PDF documents found."));
 
-async function loadCorpus(corpus) {
-  const list = $(corpus.list);
+  const select = $("#document-select");
+  select.replaceChildren(new Option("Select a document", ""));
+  for (const document of documents) select.add(new Option(document.name, document.name));
+}
+
+async function loadSourceDocuments(key) {
+  const loadId = ++sourceState.loadId;
+  setLoading($("#document-list"), "Loading documents...");
+  $("#document-select").replaceChildren(new Option("Loading documents...", ""));
   try {
-    const result = await api(corpus.inventoryUrl);
-    const documents = result.documents || [];
-    list.replaceChildren();
-    for (const document of documents) {
-      const link = element("a", "document-row");
-      link.href = document.url;
-      link.target = "_blank";
-      link.rel = "noopener";
-      const identity = element("div", "document-identity");
-      identity.append(element("span", "file-type", "PDF"), element("strong", "", document.name));
-      const metadata = element("span", "document-meta", formatBytes(document.size));
-      if (document.lastModified) metadata.textContent += ` · ${new Date(document.lastModified).toLocaleDateString()}`;
-      link.append(identity, metadata, element("span", "open-mark", "↗"));
-      list.append(link);
+    if (!sourceState.documents.has(key)) {
+      const result = await api(`/api/sources/${encodeURIComponent(key)}/documents`);
+      sourceState.documents.set(key, result.documents || []);
     }
-    if (!documents.length) list.append(element("div", "empty-state", "No PDF documents found."));
-
-    const select = $(corpus.select);
-    select.replaceChildren(new Option(corpus.selectionLabel, ""));
-    for (const document of documents) select.add(new Option(document.name, document.name));
+    if (loadId === sourceState.loadId) renderDocumentList(sourceState.documents.get(key));
   } catch (error) {
-    list.replaceChildren(element("div", "empty-state error", error.message));
+    if (loadId !== sourceState.loadId) return;
+    $("#document-list").replaceChildren(element("div", "empty-state error", error.message));
     toast(error.message);
   }
 }
 
-for (const corpus of corpora) {
-  $(corpus.select).addEventListener("change", async (event) => {
-    const documentName = event.target.value;
-    const list = $(corpus.chunkList);
-    if (!documentName) {
-      list.replaceChildren(element("div", "empty-state", `${corpus.selectionLabel} to inspect its chunks.`));
-      return;
-    }
-    setLoading(list, "Loading ordered chunks...");
-    try {
-      const result = await api(`${corpus.chunksUrl}?document=${encodeURIComponent(documentName)}&limit=500`);
-      $(corpus.chunkSummary).textContent = `${result.chunks.length} chunks · ${result.index}`;
-      list.replaceChildren(...result.chunks.map((chunk, index) => renderChunk(chunk, index + 1)));
-    } catch (error) {
-      list.replaceChildren(element("div", "empty-state error", error.message));
-      toast(error.message);
-    }
-  });
+async function selectSource(key) {
+  const previousKey = sourceState.key;
+  const source = sourceState.sources.find((item) => item.key === key) || sourceState.sources[0];
+  if (!source) return;
+  sourceState.key = source.key;
+  $$(".source-select").forEach((select) => { select.value = source.key; });
+  $$(".source-description").forEach((description) => { description.textContent = source.description; });
+
+  const query = $("#search-query");
+  if (!query.value.trim() || query.value === exampleSearches[previousKey]) query.value = exampleSearches[source.key] || "";
+  $("#chunk-summary").textContent = "";
+  $("#chunk-list").replaceChildren(element("div", "empty-state", "Select a document to inspect its chunks."));
+  $("#search-summary").textContent = "";
+  $("#search-results").replaceChildren(element("div", "empty-state", "Search results will appear here."));
+
+  const panel = activePanelId();
+  if (sourcePages.includes(panel) && window.location.pathname !== panelPath(panel)) {
+    window.history.replaceState({ target: panel }, "", panelPath(panel));
+  }
+  await loadSourceDocuments(source.key);
 }
+
+async function loadSources() {
+  try {
+    const result = await api("/api/sources");
+    sourceState.sources = result.sources;
+    $$(".source-select").forEach((select) => {
+      select.replaceChildren(...result.sources.map((source) => new Option(source.name, source.key)));
+      select.addEventListener("change", (event) => selectSource(event.target.value));
+    });
+    await selectSource(parseLocation().key || result.sources[0]?.key);
+  } catch (error) {
+    $("#document-list").replaceChildren(element("div", "empty-state error", error.message));
+    toast(error.message);
+  }
+}
+
+$("#document-select").addEventListener("change", async (event) => {
+  const documentName = event.target.value;
+  const list = $("#chunk-list");
+  if (!documentName) {
+    $("#chunk-summary").textContent = "";
+    list.replaceChildren(element("div", "empty-state", "Select a document to inspect its chunks."));
+    return;
+  }
+  setLoading(list, "Loading ordered chunks...");
+  try {
+    const result = await api(
+      `/api/sources/${encodeURIComponent(sourceState.key)}/chunks?document=${encodeURIComponent(documentName)}&limit=500`,
+    );
+    $("#chunk-summary").textContent = `${result.chunks.length} chunks · ${result.index}`;
+    list.replaceChildren(...result.chunks.map((chunk, index) => renderChunk(chunk, index + 1)));
+  } catch (error) {
+    list.replaceChildren(element("div", "empty-state error", error.message));
+    toast(error.message);
+  }
+});
 
 function renderChunk(chunk, position, includeScore = false) {
   const article = element("article", "chunk-card");
@@ -188,28 +222,26 @@ function renderChunk(chunk, position, includeScore = false) {
   return article;
 }
 
-for (const corpus of corpora) {
-  $(corpus.searchForm).addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const query = $(corpus.searchQuery).value.trim();
-    const results = $(corpus.searchResults);
-    if (!query) return;
-    setLoading(results, "Running hybrid search...");
-    try {
-      const result = await api(corpus.searchUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, limit: 10 }),
-      });
-      $(corpus.searchSummary).textContent = `${result.matches.length} matches · ${result.index} · hybrid semantic + vector`;
-      results.replaceChildren(...result.matches.map((chunk, index) => renderChunk(chunk, index + 1, true)));
-      if (!result.matches.length) results.append(element("div", "empty-state", "No matching chunks."));
-    } catch (error) {
-      results.replaceChildren(element("div", "empty-state error", error.message));
-      toast(error.message);
-    }
-  });
-}
+$("#search-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const query = $("#search-query").value.trim();
+  const results = $("#search-results");
+  if (!query || !sourceState.key) return;
+  setLoading(results, "Running hybrid search...");
+  try {
+    const result = await api(`/api/sources/${encodeURIComponent(sourceState.key)}/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, limit: 10 }),
+    });
+    $("#search-summary").textContent = `${result.matches.length} matches · ${result.index} · hybrid semantic + vector`;
+    results.replaceChildren(...result.matches.map((chunk, index) => renderChunk(chunk, index + 1, true)));
+    if (!result.matches.length) results.append(element("div", "empty-state", "No matching chunks."));
+  } catch (error) {
+    results.replaceChildren(element("div", "empty-state error", error.message));
+    toast(error.message);
+  }
+});
 
 function configDetails(title, value) {
   const details = element("details", "config-details");
@@ -222,25 +254,16 @@ function configDetails(title, value) {
 
 function sourceFacts(source) {
   const facts = element("dl", "config-facts source-facts");
-  const parameters = source.searchIndexParameters || source.search_index_parameters
-    || source.mcpServerParameters || source.mcp_server_parameters || {};
-  const kind = source.kind || source["@odata.type"] || "source";
-  const entries = source.kind === "mcpServer"
-    ? [
-        ["Kind", kind],
-        ["Description", source.description],
-        ["Server URL", parameters.serverURL || parameters.server_url],
-        ["Tools", parameters.tools?.map((tool) => tool.name).join(", ")],
-      ]
-    : [
-        ["Kind", kind],
-        ["Description", source.description],
-        ["Search index", parameters.searchIndexName || parameters.search_index_name],
-        ["Semantic configuration", parameters.semanticConfigurationName || parameters.semantic_configuration_name],
-        ["Search fields", parameters.searchFields?.map((field) => field.name).join(", ")],
-        ["Source data fields", parameters.sourceDataFields?.map((field) => field.name).join(", ")],
-      ];
-  for (const [label, value] of entries) {
+  const parameters = source.searchIndexParameters || source.search_index_parameters || {};
+  for (const [label, value] of [
+    ["Name", source.name],
+    ["Kind", source.kind || source["@odata.type"] || "source"],
+    ["Description", source.description],
+    ["Search index", parameters.searchIndexName || parameters.search_index_name],
+    ["Semantic configuration", parameters.semanticConfigurationName || parameters.semantic_configuration_name],
+    ["Search fields", parameters.searchFields?.map((field) => field.name).join(", ")],
+    ["Source data fields", parameters.sourceDataFields?.map((field) => field.name).join(", ")],
+  ]) {
     if (!value) continue;
     facts.append(element("dt", "", label), element("dd", "", value));
   }
@@ -248,58 +271,41 @@ function sourceFacts(source) {
 }
 
 async function loadConfiguration() {
-  const container = $("#combined-kb-configuration");
+  const container = $("#kb-configuration-details");
   setLoading(container, "Loading live resource definition...");
   try {
-    const result = await api("/api/knowledge-bases");
+    const [result, sourceList] = await Promise.all([api("/api/knowledge-base"), api("/api/sources")]);
     const sources = new Map(result.knowledgeSources.map((source) => [source.name, source]));
-    const endpointKinds = {
-      "cocoarynth-kb-docs": "documents",
-      "cocoarynth-kb-engineering-practices": "engineering-practices",
-      "cocoarynth-kb-all": "combined",
-    };
-    for (const kb of result.knowledgeBases) {
-      $$(`.mcp-strip[data-kb="${endpointKinds[kb.name]}"]`).forEach((strip) => {
-        $("code", strip).textContent = kb.mcpUrl;
-      });
+    const displayNames = new Map(sourceList.sources.map((source) => [source.knowledgeSource, source.name]));
+    const kb = result.knowledgeBase;
+    const section = element("section", "configuration-item");
+    section.append(element("h3", "", kb.name));
+    const facts = element("dl", "config-facts");
+    const model = kb.models?.[0]?.azureOpenAIParameters || kb.models?.[0]?.azure_open_ai_parameters || {};
+    for (const [label, value] of [
+      ["Description", kb.description],
+      ["Output mode", kb.outputMode || kb.output_mode || "default"],
+      ["Reranker threshold", kb.rerankerThreshold ?? kb.reranker_threshold],
+      ["Reasoning", kb.retrievalReasoningEffort?.kind || kb.retrieval_reasoning_effort?.kind || "default"],
+      ["Retrieval instructions", kb.retrievalInstructions || kb.retrieval_instructions],
+      ["Model deployment", model.deploymentId || model.deployment_id || model.modelName || model.model_name],
+    ]) {
+      if (!value) continue;
+      facts.append(element("dt", "", label), element("dd", "", value));
     }
-    container.replaceChildren();
-    for (const kb of result.knowledgeBases.filter((item) => item.name === "cocoarynth-kb-all")) {
-      const section = element("section", "configuration-item");
-      section.append(element("h3", "", kb.name));
-      const facts = element("dl", "config-facts");
-      const model = kb.models?.[0]?.azureOpenAIParameters || kb.models?.[0]?.azure_open_ai_parameters || {};
-      for (const [label, value] of [
-        ["Description", kb.description],
-        ["Output mode", kb.outputMode || kb.output_mode || "default"],
-        ["Reranker threshold", kb.rerankerThreshold ?? kb.reranker_threshold],
-        ["Reasoning", kb.retrievalReasoningEffort?.kind || kb.retrieval_reasoning_effort?.kind || "default"],
-        ["Retrieval instructions", kb.retrievalInstructions || kb.retrieval_instructions],
-        ["Model deployment", model.deploymentId || model.deployment_id || model.modelName || model.model_name],
-      ]) {
-        if (!value) continue;
-        facts.append(element("dt", "", label), element("dd", "", value));
-      }
-      const endpointValue = element("dd", "mcp-value mcp-strip");
-      endpointValue.dataset.kb = "combined";
-      const copyButton = element("button", "copy-endpoint", "Copy");
-      copyButton.type = "button";
-      copyButton.setAttribute("aria-label", "Copy combined MCP endpoint");
-      endpointValue.append(element("code", "", kb.mcpUrl), copyButton);
-      facts.append(element("dt", "", "MCP URL"), endpointValue);
-      section.append(facts);
-      const sourceList = element("div", "source-list");
-      sourceList.append(element("h3", "", "Knowledge sources:"));
-      for (const reference of kb.knowledgeSources || kb.knowledge_sources || []) {
-        const source = sources.get(reference.name) || reference;
-        const row = element("div", "source-row");
-        row.append(element("h4", "", source.name));
-        row.append(sourceFacts(source));
-        sourceList.append(row);
-      }
-      section.append(sourceList);
-      container.append(section);
+    section.append(facts);
+    const references = kb.knowledgeSources || kb.knowledge_sources || [];
+    const list = element("div", "source-list");
+    list.append(element("h3", "", `Knowledge sources · ${references.length}`));
+    for (const reference of references) {
+      const source = sources.get(reference.name) || reference;
+      const row = element("div", "source-row");
+      row.append(element("h4", "", displayNames.get(source.name) || source.name));
+      row.append(sourceFacts(source));
+      list.append(row);
     }
+    section.append(list);
+    container.replaceChildren(section);
   } catch (error) {
     container.replaceChildren(element("div", "empty-state error", error.message));
     toast(error.message);
@@ -321,8 +327,6 @@ function activityLabel(activity) {
   const label = ({
     modelQueryPlanning: "Query planning",
     searchIndex: "Index search",
-    mcpServer: "MCP tool call",
-    mcpTool: "MCP tool call",
     agenticReasoning: "Result re-ranking",
     modelAnswerSynthesis: "Answer synthesis",
     diyToolCall: "Agent calls tool",
@@ -389,14 +393,6 @@ function createActivityDetails(activity) {
   if (activity.type === "searchIndex") {
     appendActivityFact(details, "Source", activity.knowledgeSourceName || "Search index");
     appendActivityFact(details, "Search", activity.searchIndexArguments?.search || "—");
-    appendActivityFact(details, "Results", activity.count);
-  } else if (activity.type === "mcpServer" || activity.type === "mcpTool") {
-    appendActivityFact(details, "Source", activity.knowledgeSourceName || "MCP server");
-    appendActivityFact(details, "Tool", activity.mcpServerArguments?.toolName || activity.toolName || "—");
-    const toolArguments = activity.mcpServerArguments?.toolArguments || activity.toolArguments;
-    if (toolArguments && Object.keys(toolArguments).length) {
-      appendActivityFact(details, "Arguments", JSON.stringify(toolArguments));
-    }
     appendActivityFact(details, "Results", activity.count);
   } else if (activity.type === "modelQueryPlanning" || activity.type === "modelAnswerSynthesis") {
     appendActivityFact(details, "Model", activity.modelName);
@@ -482,78 +478,23 @@ function renderKnowledgeBaseResult(container, result) {
   container.append(evidence, activitySection, references);
 }
 
-$$('.kb-search').forEach((form) => form.addEventListener("submit", async (event) => {
+$("#kb-search").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const output = form.nextElementSibling;
-  const question = $("textarea", form).value.trim();
-  const combined = form.dataset.combined === "true";
+  const output = $("#kb-output");
+  const question = $("textarea", event.currentTarget).value.trim();
   if (!question) return;
-  setLoading(output, combined ? "Searching project documents and engineering practices..." : "Searching documents knowledge base...");
+  setLoading(output, "Retrieving from all six knowledge sources...");
   try {
     const result = await api("/api/retrieve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, combined }),
+      body: JSON.stringify({ question }),
     });
     renderKnowledgeBaseResult(output, result);
   } catch (error) {
     output.replaceChildren(element("div", "empty-state error", error.message));
     toast(error.message);
   }
-}));
-
-function formatMcpContent(block) {
-  if (typeof block.text !== "string") return JSON.stringify(block, null, 2);
-  try {
-    return JSON.stringify(JSON.parse(block.text), null, 2);
-  } catch {
-    return block.text;
-  }
-}
-
-function renderMcpResult(container, response) {
-  container.replaceChildren();
-  const result = response.result || {};
-  const heading = element("div", "mcp-result-heading");
-  heading.append(
-    element("h3", "", `MCP content · ${(result.content || []).length} blocks`),
-    element("span", result.isError ? "mcp-status error" : "mcp-status", result.isError ? "Tool error" : "Success"),
-  );
-  container.append(heading);
-  for (const block of result.content || []) {
-    const item = element("article", "mcp-content-block");
-    item.append(element("span", "resource-kind", block.type || "content"));
-    item.append(element("pre", "", formatMcpContent(block)));
-    container.append(item);
-  }
-  if (!result.content?.length) container.append(element("div", "empty-state", "The MCP tool returned no content blocks."));
-}
-
-$$('.mcp-search').forEach((form) => form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const output = form.nextElementSibling;
-  const question = $("textarea", form).value.trim();
-  if (!question) return;
-  setLoading(output, "Calling knowledge_base_retrieve over MCP...");
-  try {
-    const result = await api("/api/mcp/retrieve", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, target: form.dataset.target }),
-    });
-    renderMcpResult(output, result);
-  } catch (error) {
-    output.replaceChildren(element("div", "empty-state error", error.message));
-    toast(error.message);
-  }
-}));
-
-document.addEventListener("click", async (event) => {
-  const button = event.target.closest(".copy-endpoint");
-  if (!button) return;
-  const endpoint = $("code", button.closest(".mcp-strip")).textContent;
-  await navigator.clipboard.writeText(endpoint);
-  toast("MCP endpoint copied.");
 });
 
 function appendSearchTable(container, searches) {
@@ -881,4 +822,5 @@ $("#diy-form").addEventListener("submit", async (event) => {
   }
 });
 
-Promise.all([...corpora.map(loadCorpus), loadConfiguration(), loadDiySteps()]).catch((error) => toast(error.message));
+activatePanel(parseLocation().target);
+Promise.all([loadSources(), loadConfiguration(), loadDiySteps()]).catch((error) => toast(error.message));

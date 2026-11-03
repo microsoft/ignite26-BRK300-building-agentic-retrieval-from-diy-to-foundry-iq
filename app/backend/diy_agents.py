@@ -110,15 +110,6 @@ DIY_STEPS = (
 )
 DIY_STEPS_BY_NAME = {step.name: step for step in DIY_STEPS}
 AGENT_TIMEOUT_SECONDS = 240
-# Blob containers holding the PDFs that the DIY agents can cite, one per search index.
-DOCUMENT_CONTAINERS = (
-    "cocoarynth-quality",
-    "cocoarynth-origins",
-    "cocoarynth-logistics-retail",
-    "cocoarynth-policies",
-    "knowledge",
-    "engineering-practices",
-)
 
 
 class DiyAgentUnavailableError(Exception):

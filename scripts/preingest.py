@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from azure.core.exceptions import HttpResponseError, ResourceExistsError, ResourceNotFoundError
+from azure.core.exceptions import (
+    HttpResponseError,
+    ResourceExistsError,
+    ResourceNotFoundError,
+)
 from azure.core.rest import HttpRequest
 from azure.identity import AzureDeveloperCliCredential
 from azure.search.documents import SearchClient
@@ -17,12 +21,10 @@ from azure.storage.blob import BlobServiceClient, ContainerClient
 
 from app.backend.config import Settings
 from app.backend.foundry_iq import FoundryIqService
-from app.backend.naming import shared_resources
-
+from app.backend.naming import KNOWLEDGE_SOURCES_BY_KEY
 
 DOCUMENT_CORPUS_DIR = Path(__file__).parents[1] / "documents"
 ENGINEERING_PRACTICE_CORPUS_DIR = DOCUMENT_CORPUS_DIR / "engineering-practices"
-SHARED_RESOURCES = shared_resources()
 SEARCH_API_VERSION = "2026-05-01-preview"
 SEMANTIC_CONFIGURATION = "semantic-configuration"
 VECTOR_PROFILE = "vector-search-profile"
@@ -41,37 +43,52 @@ class CorpusSpec:
     description: str
 
 
-DOCUMENT_CORPUS = CorpusSpec(
+def corpus_spec(
+    key: str,
+    source_key: str,
+    directory: Path,
+    extracted_images_container_name: str,
+    description: str,
+) -> CorpusSpec:
+    source = KNOWLEDGE_SOURCES_BY_KEY[source_key]
+    return CorpusSpec(
+        key=key,
+        directory=directory,
+        index_name=source.index,
+        container_name=source.container,
+        extracted_images_container_name=extracted_images_container_name,
+        description=description,
+    )
+
+
+DOCUMENT_CORPUS = corpus_spec(
     key="documents",
+    source_key="documents",
     directory=DOCUMENT_CORPUS_DIR,
-    index_name=SHARED_RESOURCES.document_index,
-    container_name="knowledge",
     extracted_images_container_name="extracted-images",
     description="Project requirements, architecture decisions, policies, and support documents.",
 )
-ENGINEERING_PRACTICE_CORPUS = CorpusSpec(
+ENGINEERING_PRACTICE_CORPUS = corpus_spec(
     key="engineeringPractices",
+    source_key="engineering-practices",
     directory=ENGINEERING_PRACTICE_CORPUS_DIR,
-    index_name=SHARED_RESOURCES.engineering_practice_index,
-    container_name="engineering-practices",
     extracted_images_container_name="engineering-practice-images",
     description="Cocoarynth engineering, API, frontend, accessibility, and engineering culture guidance.",
 )
 COCOARYNTH_CORPUS_DIR = Path(__file__).parents[1] / "data" / "cocoarynth" / "documents"
 COCOARYNTH_CORPORA = tuple(
-    CorpusSpec(
-        key=name,
-        directory=COCOARYNTH_CORPUS_DIR / name,
-        index_name=f"{name}-index",
-        container_name=name,
-        extracted_images_container_name=f"{name}-images",
+    corpus_spec(
+        key=KNOWLEDGE_SOURCES_BY_KEY[source_key].container,
+        source_key=source_key,
+        directory=COCOARYNTH_CORPUS_DIR / KNOWLEDGE_SOURCES_BY_KEY[source_key].container,
+        extracted_images_container_name=f"{KNOWLEDGE_SOURCES_BY_KEY[source_key].container}-images",
         description=description,
     )
-    for name, description in (
-        ("cocoarynth-origins", "Farm and supplier records, partly in Spanish."),
-        ("cocoarynth-quality", "Factory receiving, testing, tasting, and batch records."),
-        ("cocoarynth-logistics-retail", "Shipping, carrier, retailer, and sales records."),
-        ("cocoarynth-policies", "Company policies, guides, and reference material."),
+    for source_key, description in (
+        ("origins", "Farm and supplier records, partly in Spanish."),
+        ("quality", "Factory receiving, testing, tasting, and batch records."),
+        ("logistics-retail", "Shipping, carrier, retailer, and sales records."),
+        ("policies", "Company policies, guides, and reference material."),
     )
 )
 CORPORA = (DOCUMENT_CORPUS, ENGINEERING_PRACTICE_CORPUS, *COCOARYNTH_CORPORA)
@@ -455,8 +472,7 @@ def ingest_corpora(
         )
         for corpus in CORPORA
     }
-    service.create_document_workspace(SHARED_RESOURCES)
-    service.create_shared_combined_workspace(SHARED_RESOURCES)
+    service.create_knowledge_base()
     return results
 
 

@@ -60,11 +60,20 @@ for server_pid in $(lsof -tiTCP:8000 -sTCP:LISTEN); do kill "$server_pid"; done
 
 Use the actual port in both commands when working on another port, such as `49153`. With `--reload`, Python edits restart the worker automatically. Refresh the browser after static HTML, CSS, or JavaScript edits. When changing a referenced static asset, increment its query-string version in `app/backend/static/index.html` to prevent stale browser assets.
 
+The portal covers one knowledge base, `cocoarynth-kb-all`, and its six knowledge sources, one per index that the DIY agents search: Farms & harvests, Quality checks, Shipping & sales, Policies, Origin Passport, and Engineering. `KNOWLEDGE_SOURCES` in `app/backend/naming.py` is the single definition of each source's URL key, display name, description, index, Blob container, and knowledge source name; the backend routes, `scripts/preingest.py`, and the DIY document proxy all derive from it. The navigation has three groups:
+
+- **Knowledge sources** (`/sources/{key}/documents`, `/sources/{key}/chunks`, `/sources/{key}/search`): browse a source's PDFs, view a document's chunks, or search its index. A source selector on each page switches all three pages and the URL. The matching APIs are `GET /api/sources`, `GET /api/sources/{key}/documents`, `GET /api/sources/{key}/documents/content/{blob}`, `GET /api/sources/{key}/chunks?document=...`, and `POST /api/sources/{key}/search`.
+- **Knowledge base** (`/knowledge-base/configuration`, `/knowledge-base/query`): the live knowledge base definition (`GET /api/knowledge-base`) and a query page that retrieves from all six sources with the activity log (`POST /api/retrieve`).
+- **DIY agentic retrieval** (`/diy-agents`), described below.
+
+`scripts/preingest.py` creates the six knowledge sources and the knowledge base with `FoundryIqService.create_knowledge_base`, and deletes the older `cocoarynth-kb-docs` and `cocoarynth-kb-engineering-practices` knowledge bases.
+
 Useful checks:
 
 ```shell
 curl --fail-with-body http://127.0.0.1:8000/health
-curl --fail-with-body http://127.0.0.1:8000/api/knowledge-bases
+curl --fail-with-body http://127.0.0.1:8000/api/sources
+curl --fail-with-body http://127.0.0.1:8000/api/knowledge-base
 ```
 
 ### DIY retrieval agents
@@ -150,7 +159,7 @@ Run deterministic portal E2E tests:
 These tests start an isolated Uvicorn server and mock Azure-dependent browser APIs. They do not require provisioned Azure resources. During iteration, use `-k` to target a workflow:
 
 ```shell
-.venv/bin/python -m pytest tests/e2e.py -q -k 'part3_portal_workflow or part4_portal_workflow'
+.venv/bin/python -m pytest tests/e2e.py -q -k 'source or knowledge_base'
 ```
 
 Run the same browser suite against real services from the selected provisioned `azd` environment:

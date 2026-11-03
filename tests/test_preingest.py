@@ -1,6 +1,6 @@
+import hashlib
 import tempfile
 import unittest
-import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -107,7 +107,7 @@ class IngestCorpusTests(unittest.TestCase):
     @patch("scripts.preingest.SearchIndexerClient")
     @patch("scripts.preingest.clear_index_documents", return_value=4)
     @patch("scripts.preingest.sync_blob_corpus")
-    def test_ingestion_indexes_all_corpora_before_creating_knowledge_bases(
+    def test_ingestion_indexes_all_corpora_before_creating_knowledge_base(
         self,
         sync_corpus: Mock,
         clear_documents: Mock,
@@ -135,8 +135,7 @@ class IngestCorpusTests(unittest.TestCase):
             "https://example.services.ai.azure.com",
         )
 
-        service.create_document_workspace.assert_called_once()
-        service.create_shared_combined_workspace.assert_called_once()
+        service.create_knowledge_base.assert_called_once_with()
         self.assertEqual(result["documents"]["indexedItems"], 12)
         self.assertEqual(result["engineeringPractices"]["removedChunks"], 4)
         cocoarynth = [

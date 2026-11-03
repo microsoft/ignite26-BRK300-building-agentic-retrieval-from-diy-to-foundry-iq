@@ -15,9 +15,27 @@ from playwright.sync_api import Page, Route, expect
 
 from app.backend.config import Settings
 from app.backend.main import app
-
+from app.backend.naming import KNOWLEDGE_SOURCES, KnowledgeSourceSpec
 
 expect.set_options(timeout=10_000)
+
+QUALITY_OVERVIEW = {
+    "container": "cocoarynth-quality",
+    "documents": [
+        {
+            "name": "hold-notice-mg26-l02.pdf",
+            "size": 31000,
+            "lastModified": "2026-09-02T12:00:00+00:00",
+            "url": "/api/sources/quality/documents/content/hold-notice-mg26-l02.pdf",
+        },
+        {
+            "name": "tasting-panel-september-2026.pdf",
+            "size": 36000,
+            "lastModified": "2026-09-30T12:00:00+00:00",
+            "url": "/api/sources/quality/documents/content/tasting-panel-september-2026.pdf",
+        },
+    ],
+}
 
 DOCUMENT_OVERVIEW = {
     "container": "knowledge",
@@ -26,54 +44,39 @@ DOCUMENT_OVERVIEW = {
             "name": "mapayca-markets-traceability-pilot-requirements.pdf",
             "size": 42000,
             "lastModified": "2026-09-16T12:00:00+00:00",
-            "url": "/api/documents/content/mapayca-markets-traceability-pilot-requirements.pdf",
+            "url": "/api/sources/documents/documents/content/mapayca-markets-traceability-pilot-requirements.pdf",
         },
         {
             "name": "origin-passport-support-runbook.pdf",
             "size": 38000,
             "lastModified": "2026-09-16T12:00:00+00:00",
-            "url": "/api/documents/content/origin-passport-support-runbook.pdf",
+            "url": "/api/sources/documents/documents/content/origin-passport-support-runbook.pdf",
         },
     ],
 }
 
-ENGINEERING_PRACTICE_OVERVIEW = {
-    "container": "engineering-practices",
+ORIGINS_OVERVIEW = {
+    "container": "cocoarynth-origins",
     "documents": [
         {
-            "name": "cocoarynth-engineering-culture-presentation.pdf",
-            "size": 52000,
-            "lastModified": "2026-09-17T12:00:00+00:00",
-            "url": "/api/engineering-practices/content/cocoarynth-engineering-culture-presentation.pdf",
+            "name": "origin-profile-ghana.pdf",
+            "size": 28000,
+            "lastModified": "2026-08-01T12:00:00+00:00",
+            "url": "/api/sources/origins/documents/content/origin-profile-ghana.pdf",
         }
     ],
 }
 
-CHUNKS = {
-    "index": "cocoarynth-documents-index",
-    "document": "mapayca-markets-traceability-pilot-requirements.pdf",
+QUALITY_CHUNKS = {
+    "index": "cocoarynth-quality-index",
+    "document": "hold-notice-mg26-l02.pdf",
     "chunks": [
         {
-            "chunk_id": "chunk-1",
-            "title": "Mapayca Markets pilot requirements",
-            "chunk": "Inventory imports must use CSV format.",
+            "chunk_id": "quality-chunk-1",
+            "title": "hold-notice-mg26-l02.pdf",
+            "chunk": "Lot MG26-L02 held on arrival: moisture 8.6% at receipt.",
             "page_number_from": 1,
-            "page_number_to": 2,
-            "image_path": None,
-        }
-    ],
-}
-
-ENGINEERING_PRACTICE_CHUNKS = {
-    "index": "cocoarynth-engineering-practices-index",
-    "document": "cocoarynth-engineering-culture-presentation.pdf",
-    "chunks": [
-        {
-            "chunk_id": "style-chunk-1",
-            "title": "Engineering Culture",
-            "chunk": "Code review is both a quality gate and a teaching system.",
-            "page_number_from": 19,
-            "page_number_to": 19,
+            "page_number_to": 1,
             "image_path": None,
         }
     ],
@@ -87,7 +90,7 @@ RETRIEVAL = {
                 {
                     "type": "text",
                     "text": json.dumps(
-                        [{"ref_id": 0, "title": "Pilot requirements", "content": "Mapayca Markets requires CSV."}]
+                        [{"ref_id": 0, "title": "Hold notice", "content": "Lot MG26-L02 was held on arrival."}]
                     ),
                 }
             ],
@@ -105,18 +108,18 @@ RETRIEVAL = {
         {
             "type": "searchIndex",
             "id": 1,
-            "knowledgeSourceName": "cocoarynth-documents-source",
+            "knowledgeSourceName": "cocoarynth-logistics-retail-source",
             "count": 1,
             "elapsedMs": 14,
-            "searchIndexArguments": {"search": "CSV export"},
+            "searchIndexArguments": {"search": "Madagascar limited edition launch date"},
         },
         {
             "type": "searchIndex",
             "id": 2,
-            "knowledgeSourceName": "cocoarynth-engineering-practices-source",
+            "knowledgeSourceName": "cocoarynth-quality-source",
             "count": 1,
             "elapsedMs": 11,
-            "searchIndexArguments": {"search": "CSV API accessibility standards"},
+            "searchIndexArguments": {"search": "Madagascar lot MG26-L02 hold"},
         },
         {
             "type": "agenticReasoning",
@@ -130,128 +133,71 @@ RETRIEVAL = {
             "type": "searchIndex",
             "id": "0",
             "activitySource": 1,
-            "title": "Pilot requirements",
+            "title": "launch-plan-madagascar-nibs.pdf",
             "rerankerScore": 3.9,
-            "sourceData": {"chunk": "Mapayca Markets requires CSV."},
+            "sourceData": {"chunk": "Launch moved from 1 September to 1 October."},
         },
         {
             "type": "searchIndex",
             "id": "1",
             "activitySource": 2,
-            "title": "API Design and Export Contracts Guide",
-            "sourceData": {"chunk": "Generate CSV with a standards-based library."},
+            "title": "hold-notice-mg26-l02.pdf",
+            "sourceData": {"chunk": "Lot MG26-L02 held on arrival: moisture 8.6% at receipt."},
         },
     ],
 }
 
-MCP_RETRIEVAL = {
-    "result": {
-        "content": [
-            {
-                "type": "text",
-                "text": json.dumps(
-                    [{"ref_id": "0", "title": "Pilot requirements", "content": "Mapayca Markets requires CSV."}]
-                ),
-            }
-        ],
-        "isError": False,
-    }
-}
-
-SEARCH_RESULTS = {
-    "index": "cocoarynth-documents-index",
-    "query": "CSV export",
+QUALITY_SEARCH_RESULTS = {
+    "index": "cocoarynth-quality-index",
+    "query": "bean moisture test results on arrival",
     "matches": [
         {
-            **CHUNKS["chunks"][0],
+            **QUALITY_CHUNKS["chunks"][0],
             "@search.score": 0.91,
             "@search.reranker_score": 3.75,
         }
     ],
 }
 
-ENGINEERING_PRACTICE_SEARCH_RESULTS = {
-    "index": "cocoarynth-engineering-practices-index",
-    "query": "testing review rollout and monitoring standards",
-    "matches": [
-        {
-            **ENGINEERING_PRACTICE_CHUNKS["chunks"][0],
-            "@search.score": 0.88,
-            "@search.reranker_score": 3.61,
-        }
-    ],
-}
+SOURCE_DOCUMENTS = {"quality": QUALITY_OVERVIEW, "documents": DOCUMENT_OVERVIEW, "origins": ORIGINS_OVERVIEW}
+SOURCE_INDEXES = {source.key: source.index for source in KNOWLEDGE_SOURCES}
+
+
+def knowledge_source_definition(source: KnowledgeSourceSpec) -> dict:
+    return {
+        "name": source.knowledge_source,
+        "kind": "searchIndex",
+        "description": f"{source.name}: {source.description}",
+        "searchIndexParameters": {
+            "searchIndexName": source.index,
+            "semanticConfigurationName": "semantic-configuration",
+            "searchFields": [{"name": "chunk"}],
+            "sourceDataFields": [{"name": "title"}],
+        },
+    }
+
 
 CONFIGURATION = {
-    "knowledgeBases": [
-        {
-            "name": "cocoarynth-kb-docs",
-            "description": "Documents only",
-            "outputMode": "extractiveData",
-            "rerankerThreshold": 1.7,
-            "mcpUrl": "https://example.search.windows.net/knowledgebases/cocoarynth-kb-docs/mcp?api-version=2026-08-01-preview",
-            "knowledgeSources": [{"name": "cocoarynth-documents-source"}],
-        },
-        {
-            "name": "cocoarynth-kb-engineering-practices",
-            "description": "Engineering practices only",
-            "outputMode": "extractiveData",
-            "rerankerThreshold": 1.7,
-            "retrievalReasoningEffort": {"kind": "minimal"},
-            "mcpUrl": "https://example.search.windows.net/knowledgebases/cocoarynth-kb-engineering-practices/mcp?api-version=2026-08-01-preview",
-            "knowledgeSources": [{"name": "cocoarynth-engineering-practices-source"}],
-        },
-        {
-            "name": "cocoarynth-kb-all",
-            "description": "Project documents and company engineering practices",
-            "outputMode": "extractiveData",
-            "rerankerThreshold": 1.7,
-            "retrievalReasoningEffort": {"kind": "low"},
-            "mcpUrl": "https://example.search.windows.net/knowledgebases/cocoarynth-kb-all/mcp?api-version=2026-08-01-preview",
-            "retrievalInstructions": (
-                "Use project documents for product requirements, architecture decisions, policies, and support "
-                "constraints. Use company engineering practices for React, API, frontend design, accessibility, "
-                "and engineering culture. Distinguish product requirements from implementation guidance and cite "
-                "factual claims."
-            ),
-            "models": [
-                {
-                    "kind": "azureOpenAI",
-                    "azureOpenAIParameters": {
-                        "deploymentId": "gpt-5.5",
-                        "modelName": "gpt-5.5",
-                    },
-                }
-            ],
-            "knowledgeSources": [
-                {"name": "cocoarynth-documents-source"},
-                {"name": "cocoarynth-engineering-practices-source"},
-            ],
-        },
-    ],
+    "knowledgeBase": {
+        "name": "cocoarynth-kb-all",
+        "description": "Cocoarynth chocolate company knowledge",
+        "outputMode": "extractiveData",
+        "rerankerThreshold": 1.7,
+        "retrievalReasoningEffort": {"kind": "low"},
+        "retrievalInstructions": "Use farms & harvests for origin, farm, fermentation, certification, and bean price records.",
+        "models": [
+            {
+                "kind": "azureOpenAI",
+                "azureOpenAIParameters": {
+                    "deploymentId": "gpt-5.5",
+                    "modelName": "gpt-5.5",
+                },
+            }
+        ],
+        "knowledgeSources": [{"name": source.knowledge_source} for source in KNOWLEDGE_SOURCES],
+    },
     "knowledgeSources": [
-        {
-            "name": "cocoarynth-documents-source",
-            "kind": "searchIndex",
-            "description": "Workshop documents",
-            "searchIndexParameters": {
-                "searchIndexName": "cocoarynth-documents-index",
-                "semanticConfigurationName": "semantic-configuration",
-                "searchFields": [{"name": "chunk"}],
-                "sourceDataFields": [{"name": "title"}],
-            },
-        },
-        {
-            "name": "cocoarynth-engineering-practices-source",
-            "kind": "searchIndex",
-            "description": "Company engineering practices",
-            "searchIndexParameters": {
-                "searchIndexName": "cocoarynth-engineering-practices-index",
-                "semanticConfigurationName": "semantic-configuration",
-                "searchFields": [{"name": "chunk"}],
-                "sourceDataFields": [{"name": "title"}],
-            },
-        },
+knowledge_source_definition(source) for source in KNOWLEDGE_SOURCES
     ],
 }
 
@@ -429,56 +375,37 @@ def live_server_url(
         process.join(timeout=5)
 
 
+def json_response(route: Route, body: dict, status: int = 200) -> None:
+    route.fulfill(status=status, content_type="application/json", body=json.dumps(body))
+
+
 def mock_app_apis(page: Page, live_smoke: bool, document_error: bool = False) -> None:
     if live_smoke:
         return
 
-    page.route(
-        re.compile(r".*/api/documents$"),
-        lambda route: route.fulfill(
-            status=503 if document_error else 200,
-            content_type="application/json",
-            body=json.dumps(
-                {"detail": "Search inventory is unavailable."} if document_error else DOCUMENT_OVERVIEW
-            ),
-        ),
-    )
-    page.route(
-        re.compile(r".*/api/documents/chunks.*"),
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(CHUNKS)),
-    )
-    page.route(
-        re.compile(r".*/api/documents/search$"),
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(SEARCH_RESULTS)),
-    )
-    page.route(
-        re.compile(r".*/api/engineering-practices$"),
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(ENGINEERING_PRACTICE_OVERVIEW)),
-    )
-    page.route(
-        re.compile(r".*/api/engineering-practices/chunks.*"),
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(ENGINEERING_PRACTICE_CHUNKS)),
-    )
-    page.route(
-        re.compile(r".*/api/engineering-practices/search$"),
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(ENGINEERING_PRACTICE_SEARCH_RESULTS)),
-    )
-    page.route(
-        re.compile(r".*/api/knowledge-bases$"),
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(CONFIGURATION)),
-    )
-    page.route(
-        re.compile(r".*/api/mcp/retrieve$"),
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(MCP_RETRIEVAL)),
-    )
-    page.route(
-        re.compile(r".*/api/diy/agents$"),
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(DIY_AGENTS)),
-    )
-    page.route(
-        re.compile(r".*/api/diy/ask$"),
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(DIY_ANSWER)),
-    )
+    def handle_documents(route: Route) -> None:
+        key = route.request.url.split("/api/sources/")[1].split("/")[0]
+        if document_error:
+            json_response(route, {"detail": "Search inventory is unavailable."}, 503)
+        else:
+            json_response(route, SOURCE_DOCUMENTS.get(key, {"container": key, "documents": []}))
+
+    def handle_chunks(route: Route) -> None:
+        key = route.request.url.split("/api/sources/")[1].split("/")[0]
+        json_response(route, {**QUALITY_CHUNKS, "index": SOURCE_INDEXES[key]})
+
+    def handle_search(route: Route) -> None:
+        key = route.request.url.split("/api/sources/")[1].split("/")[0]
+        json_response(route, {**QUALITY_SEARCH_RESULTS, "index": SOURCE_INDEXES[key]})
+
+    page.route(re.compile(r".*/api/sources/[^/]+/documents$"), handle_documents)
+    page.route(re.compile(r".*/api/sources/[^/]+/chunks.*"), handle_chunks)
+    page.route(re.compile(r".*/api/sources/[^/]+/search$"), handle_search)
+    page.route(re.compile(r".*/api/knowledge-base$"), lambda route: json_response(route, CONFIGURATION))
+    page.route(re.compile(r".*/api/diy/agents$"), lambda route: json_response(route, DIY_AGENTS))
+    page.route(re.compile(r".*/api/diy/ask$"), lambda route: json_response(route, DIY_ANSWER))
+
+
 @pytest.mark.parametrize("viewport", [(390, 844), (768, 1024), (1280, 800)])
 def test_home_is_responsive(
     page: Page, live_server_url: str, live_smoke: bool, viewport: tuple[int, int]
@@ -503,7 +430,7 @@ def test_home_is_responsive(
 
 def test_header_brand_links_to_home(page: Page, live_server_url: str, live_smoke: bool) -> None:
     mock_app_apis(page, live_smoke)
-    page.goto(f"{live_server_url}combined/query")
+    page.goto(f"{live_server_url}knowledge-base/query")
 
     page.get_by_role("link", name="Workshop portal home").click()
 
@@ -511,153 +438,151 @@ def test_header_brand_links_to_home(page: Page, live_server_url: str, live_smoke
     expect(page.locator("#home")).to_have_class(re.compile(r"\bactive\b"))
 
 
-def test_loads_corpus_inventory(page: Page, live_server_url: str, live_smoke: bool) -> None:
+def test_navigation_has_sources_knowledge_base_and_diy_groups(
+    page: Page, live_server_url: str, live_smoke: bool
+) -> None:
     mock_app_apis(page, live_smoke)
     page.goto(live_server_url)
 
-    expect(page.locator("#document-list")).to_contain_text("mapayca-markets-traceability-pilot-requirements.pdf")
-    expect(page.locator("#document-list a").first).to_have_attribute("href", re.compile(r"/api/documents/content/"))
-    expect(page.locator("#documents .mcp-strip")).to_have_count(0)
+    expect(page.locator(".nav-label")).to_have_text(["Knowledge sources", "Knowledge base", "DIY agentic retrieval"])
+    expect(page.locator(".nav-group").nth(0).locator(".nav-item")).to_have_text(
+        ["Browse documents", "View document chunks", "Search the index"]
+    )
+    expect(page.locator(".nav-group-kb .nav-item")).to_have_text(["Configuration", "Query knowledge base"])
+    expect(page.locator(".nav-group-kb")).to_have_css("border-top-style", "solid")
+    expect(page.get_by_text("MCP")).to_have_count(0)
+    expect(page.get_by_text("Azure AI Search")).to_have_count(0)
+
+
+def test_loads_source_inventory(page: Page, live_server_url: str, live_smoke: bool) -> None:
+    mock_app_apis(page, live_smoke)
+    page.goto(f"{live_server_url}sources/quality/documents")
+
+    select = page.locator("#documents-source")
+    expect(select.locator("option")).to_have_text([source.name for source in KNOWLEDGE_SOURCES])
+    expect(select).to_have_value("quality")
+    expect(page.locator("#documents .source-description")).to_contain_text("tasting panels")
+    if live_smoke:
+        expect(page.locator("#document-list a").first).to_be_visible()
+    else:
+        expect(page.locator("#document-list")).to_contain_text("hold-notice-mg26-l02.pdf")
+    expect(page.locator("#document-list a").first).to_have_attribute(
+        "href", re.compile(r"/api/sources/quality/documents/content/")
+    )
+
+
+def test_defaults_to_first_source(page: Page, live_server_url: str, live_smoke: bool) -> None:
+    mock_app_apis(page, live_smoke)
+    page.goto(live_server_url)
+    page.locator(".nav-group").nth(0).get_by_role("button", name="Browse documents", exact=True).click()
+
+    expect(page).to_have_url(re.compile(r"/sources/origins/documents$"))
+    expect(page.locator("#documents-source")).to_have_value("origins")
+    if not live_smoke:
+        expect(page.locator("#document-list")).to_contain_text("origin-profile-ghana.pdf")
 
 
 def test_page_permalinks_and_browser_history(page: Page, live_server_url: str, live_smoke: bool) -> None:
     mock_app_apis(page, live_smoke)
     for path, panel_id in {
-        "project-requirements": "documents",
-        "project-requirements/chunks": "chunks",
-        "project-requirements/search": "search",
-        "project-requirements/mcp": "documents-mcp",
-        "engineering-practices": "engineering-practices",
-        "engineering-practices/chunks": "engineering-practices-chunks",
-        "engineering-practices/search": "engineering-practices-search",
-        "engineering-practices/mcp": "engineering-practices-mcp",
-        "combined/configuration": "combined-configuration",
-        "combined/query": "combined-kb",
-        "combined/mcp": "combined-mcp",
+        "sources/origins/documents": "documents",
+        "sources/quality/chunks": "chunks",
+        "sources/engineering-practices/search": "search",
+        "knowledge-base/configuration": "kb-configuration",
+        "knowledge-base/query": "kb-query",
         "diy-agents": "diy-agents",
     }.items():
         page.goto(f"{live_server_url}{path}")
         expect(page.locator(f"#{panel_id}")).to_have_class(re.compile(r"\bactive\b"))
         expect(page).to_have_url(re.compile(rf"/{path}$"))
 
-    page.goto(f"{live_server_url}project-requirements/search")
+    for path in ("project-requirements", "combined/query", "sources/unknown/documents", "sources/quality/mcp"):
+        assert requests.get(f"{live_server_url}{path}", timeout=10).status_code == 404
 
-    expect(page.locator("#search")).to_have_class(re.compile(r"\bactive\b"))
-    expect(page).to_have_url(re.compile(r"/project-requirements/search$"))
+    page.goto(f"{live_server_url}sources/policies/search")
+    expect(page.locator("#search-source")).to_have_value("policies")
 
-    page.locator('.nav-group').filter(has_text="Corpus 1: Project requirements").get_by_role("button", name="Call over MCP", exact=True).click()
-    expect(page.locator("#documents-mcp")).to_have_class(re.compile(r"\bactive\b"))
-    expect(page).to_have_url(re.compile(r"/project-requirements/mcp$"))
+    page.locator(".nav-group-kb").get_by_role("button", name="Query knowledge base", exact=True).click()
+    expect(page.locator("#kb-query")).to_have_class(re.compile(r"\bactive\b"))
+    expect(page).to_have_url(re.compile(r"/knowledge-base/query$"))
 
     page.go_back()
     expect(page.locator("#search")).to_have_class(re.compile(r"\bactive\b"))
-    expect(page).to_have_url(re.compile(r"/project-requirements/search$"))
+    expect(page).to_have_url(re.compile(r"/sources/policies/search$"))
+
+
+def test_selected_source_persists_across_source_pages(
+    page: Page, live_server_url: str, live_smoke: bool
+) -> None:
+    mock_app_apis(page, live_smoke)
+    page.goto(f"{live_server_url}sources/origins/documents")
+    sources = page.locator(".nav-group").nth(0)
+
+    page.locator("#documents-source").select_option(label="Origin Passport")
+    expect(page).to_have_url(re.compile(r"/sources/documents/documents$"))
+    if not live_smoke:
+        expect(page.locator("#document-list")).to_contain_text("mapayca-markets-traceability-pilot-requirements.pdf")
+
+    sources.get_by_role("button", name="View document chunks", exact=True).click()
+    expect(page).to_have_url(re.compile(r"/sources/documents/chunks$"))
+    expect(page.locator("#chunks-source")).to_have_value("documents")
+
+    sources.get_by_role("button", name="Search the index", exact=True).click()
+    expect(page).to_have_url(re.compile(r"/sources/documents/search$"))
+    expect(page.locator("#search-source")).to_have_value("documents")
+    expect(page.locator("#search-query")).to_have_value("CSV export requirements")
+
+    page.locator("#search-source").select_option(label="Engineering")
+    expect(page).to_have_url(re.compile(r"/sources/engineering-practices/search$"))
+    expect(page.locator("#search-query")).to_have_value("testing review rollout and monitoring standards")
+    expect(page.locator("#documents-source")).to_have_value("engineering-practices")
 
 
 def test_loads_content_understanding_chunks(page: Page, live_server_url: str, live_smoke: bool) -> None:
     mock_app_apis(page, live_smoke)
-    page.goto(live_server_url)
-    page.locator('.nav-group').filter(has_text="Corpus 1: Project requirements").get_by_role("button", name="View document chunks", exact=True).click()
+    chunk_urls: list[str] = []
+    page.on("request", lambda request: chunk_urls.append(request.url) if "/chunks?" in request.url else None)
+    page.goto(f"{live_server_url}sources/quality/chunks")
 
-    page.locator("#document-select").select_option(label="mapayca-markets-traceability-pilot-requirements.pdf")
-
+    document_select = page.locator("#document-select")
     if live_smoke:
-        expect(page.locator("#chunk-list")).to_contain_text("mapayca-markets-traceability-pilot-requirements.pdf")
-        assert page.locator("#chunk-list article").count() > 1
+        expect(document_select.locator("option")).not_to_have_count(1)
+        document_select.select_option(index=1)
+        expect(page.locator("#chunk-list article").first).to_be_visible()
     else:
-        expect(page.locator("#chunk-list")).to_contain_text("Inventory imports must use CSV format.")
+        document_select.select_option(label="hold-notice-mg26-l02.pdf")
+        expect(page.locator("#chunk-list")).to_contain_text("Lot MG26-L02 held on arrival")
+        assert any("/api/sources/quality/chunks?document=hold-notice-mg26-l02.pdf" in url for url in chunk_urls)
+    expect(page.locator("#chunk-summary")).to_contain_text("cocoarynth-quality-index")
     expect(page.locator("#chunk-list")).to_contain_text("page_number_from")
 
 
-def test_runs_hybrid_document_search(page: Page, live_server_url: str, live_smoke: bool) -> None:
+def test_runs_hybrid_source_search(page: Page, live_server_url: str, live_smoke: bool) -> None:
     mock_app_apis(page, live_smoke)
-    page.goto(live_server_url)
-    page.locator('.nav-group').filter(has_text="Corpus 1: Project requirements").get_by_role("button", name="Search the index", exact=True).click()
+    search_requests: list[tuple[str, dict]] = []
+    page.on(
+        "request",
+        lambda request: search_requests.append((request.url, request.post_data_json))
+        if "/api/sources/" in request.url and request.url.endswith("/search")
+        else None,
+    )
+    page.goto(f"{live_server_url}sources/quality/search")
 
-    page.get_by_role("button", name="Search", exact=True).click()
+    expect(page.locator("#search-query")).to_have_value("bean moisture test results on arrival")
+    page.locator("#search-form").get_by_role("button", name="Search", exact=True).click()
 
     if live_smoke:
         expect(page.locator("#search-results article").first).to_be_visible()
     else:
-        expect(page.locator("#search-results")).to_contain_text("Inventory imports must use CSV format.")
+        expect(page.locator("#search-results")).to_contain_text("Lot MG26-L02 held on arrival")
         expect(page.locator("#search-results")).to_contain_text("Reranker 3.750")
         expect(page.locator("#search-results")).to_contain_text("Search 0.910")
-    expect(page.locator("#search-summary")).to_contain_text("hybrid semantic + vector")
+    expect(page.locator("#search-summary")).to_contain_text("cocoarynth-quality-index · hybrid semantic + vector")
+    assert search_requests[0][0].endswith("/api/sources/quality/search")
+    assert search_requests[0][1] == {"query": "bean moisture test results on arrival", "limit": 10}
 
 
-def test_explores_engineering_practice_index(page: Page, live_server_url: str, live_smoke: bool) -> None:
-    mock_app_apis(page, live_smoke)
-    page.goto(live_server_url)
-
-    page.locator('.nav-group').filter(has_text="Corpus 2: Engineering practices").get_by_role("button", name="Browse documents", exact=True).click()
-    expect(page.locator("#engineering-practices-list")).to_contain_text("cocoarynth-engineering-culture-presentation.pdf")
-
-    page.locator('.nav-group').filter(has_text="Corpus 2: Engineering practices").get_by_role("button", name="View document chunks", exact=True).click()
-    page.locator("#engineering-practices-select").select_option(label="cocoarynth-engineering-culture-presentation.pdf")
-    expect(page.locator("#engineering-practices-chunk-summary")).to_contain_text("cocoarynth-engineering-practices-index")
-    expect(page.locator("#engineering-practices-chunk-list")).to_contain_text("Code review")
-
-    page.locator('.nav-group').filter(has_text="Corpus 2: Engineering practices").get_by_role("button", name="Search the index", exact=True).click()
-    page.locator("#engineering-practices-search-form").get_by_role("button", name="Search").click()
-    expect(page.locator("#engineering-practices-search-summary")).to_contain_text("cocoarynth-engineering-practices-index")
-    expect(page.locator("#engineering-practices-search-results")).to_contain_text("Engineering Culture")
-
-
-def test_part3_portal_workflow(page: Page, live_server_url: str, live_smoke: bool) -> None:
-    if live_smoke:
-        pytest.skip("Model-judged workshop acceptance is covered by tests/live_smoke.py.")
-    mock_app_apis(page, live_smoke)
-    mcp_payloads: list[dict] = []
-    search_payloads: list[dict] = []
-
-    page.on(
-        "request",
-        lambda request: search_payloads.append(request.post_data_json)
-        if request.url.endswith("/api/documents/search")
-        else None,
-    )
-
-    def handle_mcp_retrieval(route: Route) -> None:
-        mcp_payloads.append(route.request.post_data_json)
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(MCP_RETRIEVAL))
-
-    page.route(re.compile(r".*/api/mcp/retrieve$"), handle_mcp_retrieval)
-    page.goto(live_server_url)
-    corpus = page.locator(".nav-group").filter(has_text="Corpus 1: Project requirements")
-
-    corpus.get_by_role("button", name="Browse documents", exact=True).click()
-    expect(page.locator("#document-list")).to_contain_text("mapayca-markets-traceability-pilot-requirements.pdf")
-
-    corpus.get_by_role("button", name="View document chunks", exact=True).click()
-    page.locator("#document-select").select_option(label="mapayca-markets-traceability-pilot-requirements.pdf")
-    expect(page.locator("#chunk-list")).to_contain_text("Inventory imports must use CSV format.")
-    expect(page.locator("#chunk-list")).to_contain_text("page_number_from")
-
-    corpus.get_by_role("button", name="Search the index", exact=True).click()
-    for query in ("CSV export requirements", "information excluded from wholesale exports"):
-        page.locator("#search-query").fill(query)
-        page.locator("#search-form").get_by_role("button", name="Search").click()
-        expect(page.locator("#search-summary")).to_contain_text("cocoarynth-documents-index")
-        expect(page.locator("#search-results")).to_contain_text("Inventory imports must use CSV format.")
-
-    corpus.get_by_role("button", name="Call over MCP", exact=True).click()
-    question = "What must change in the Origin Passport export for the Mapayça Markets pilot?"
-    page.locator('#documents-mcp textarea').fill(question)
-    page.locator("#documents-mcp").get_by_role("button", name="Call over MCP").click()
-    expect(page.locator("#documents-mcp .mcp-output")).to_contain_text("Mapayca Markets requires CSV.")
-    expect(page.locator("#documents-mcp .mcp-output")).to_contain_text("MCP content · 1 blocks")
-    assert page.locator("#documents-mcp .mcp-content-block pre").text_content().startswith(
-        '[\n  {\n    "ref_id": "0",'
-    )
-
-    assert [payload["query"] for payload in search_payloads] == [
-        "CSV export requirements",
-        "information excluded from wholesale exports",
-    ]
-    assert mcp_payloads == [{"question": question, "target": "documents"}]
-
-
-def test_part4_portal_workflow(page: Page, live_server_url: str, live_smoke: bool) -> None:
+def test_query_knowledge_base_workflow(page: Page, live_server_url: str, live_smoke: bool) -> None:
     if live_smoke:
         pytest.skip("Model-judged workshop acceptance is covered by tests/live_smoke.py.")
     mock_app_apis(page, live_smoke)
@@ -665,75 +590,65 @@ def test_part4_portal_workflow(page: Page, live_server_url: str, live_smoke: boo
 
     def handle_retrieval(route: Route) -> None:
         retrieval_payloads.append(route.request.post_data_json)
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(RETRIEVAL))
+        json_response(route, RETRIEVAL)
 
     page.route(re.compile(r".*/api/retrieve$"), handle_retrieval)
     page.goto(live_server_url)
-    combined = page.locator(".nav-group").filter(has_text="Combined knowledge base")
-    combined.get_by_role("button", name="Configuration", exact=True).click()
+    page.locator(".nav-group-kb").get_by_role("button", name="Query knowledge base", exact=True).click()
 
-    configuration = page.locator("#combined-kb-configuration")
-    expect(configuration).to_contain_text("cocoarynth-kb-all")
-    expect(configuration).to_contain_text("Reranker threshold1.7")
-    expect(configuration).to_contain_text("Reasoninglow")
-    for source_name, index_name in (
-        ("cocoarynth-documents-source", "cocoarynth-documents-index"),
-        ("cocoarynth-engineering-practices-source", "cocoarynth-engineering-practices-index"),
-    ):
-        source = configuration.locator(".source-row").filter(has_text=source_name)
-        expect(source.locator(".source-facts")).to_contain_text("KindsearchIndex")
-        expect(source.locator(".source-facts")).to_contain_text(index_name)
+    question = page.locator("#kb-query textarea")
+    expect(question).to_have_value(re.compile(r"^Why did the Madagascar limited-edition bar with cacao nibs launch"))
+    default_question = question.input_value()
+    page.locator("#kb-query").get_by_role("button", name="Query knowledge base").click()
 
-    combined.get_by_role("button", name="Query knowledge base", exact=True).click()
-    question = "What product requirements and company engineering standards should guide CSV Origin Passport support? Cite evidence from both corpora."
-    page.locator('#combined-kb textarea').fill(question)
-    page.locator("#combined-kb").get_by_role("button", name="Search combined KB").click()
-    activity = page.locator("#combined-kb .activity-table")
-    references = page.locator("#combined-kb .reference-list")
-    expect(activity).to_contain_text("cocoarynth-documents-source")
-    expect(activity).to_contain_text("CSV export")
-    expect(activity).to_contain_text("cocoarynth-engineering-practices-source")
-    expect(activity).to_contain_text("CSV API accessibility standards")
-    expect(references).to_contain_text("Pilot requirements")
-    expect(references).to_contain_text("API Design and Export Contracts Guide")
-    assert retrieval_payloads == [{"question": question, "combined": True}]
+    output = page.locator("#kb-output")
+    expect(output).to_contain_text("Lot MG26-L02 was held on arrival.")
+    activity = output.locator(".activity-table")
+    expect(activity).to_contain_text("cocoarynth-logistics-retail-source")
+    expect(activity).to_contain_text("Madagascar limited edition launch date")
+    expect(activity).to_contain_text("cocoarynth-quality-source")
+    expect(activity).to_contain_text("Result re-ranking")
+    references = output.locator(".reference-list")
+    expect(references).to_contain_text("launch-plan-madagascar-nibs.pdf")
+    expect(references).to_contain_text("hold-notice-mg26-l02.pdf")
+    assert retrieval_payloads == [{"question": default_question}]
 
 
 def test_displays_knowledge_base_configuration(page: Page, live_server_url: str, live_smoke: bool) -> None:
     mock_app_apis(page, live_smoke)
     page.goto(live_server_url)
-    page.locator(".nav-group").filter(has_text="Combined knowledge base").get_by_role("button", name="Configuration", exact=True).click()
-    combined_config = page.locator("#combined-kb-configuration")
-    expect(combined_config).to_contain_text("cocoarynth-kb-all")
-    expect(combined_config).to_contain_text("cocoarynth-documents-source")
-    expect(combined_config).to_contain_text("cocoarynth-engineering-practices-source")
-    expect(combined_config).not_to_contain_text("Bearer")
-    expect(combined_config.locator(".configuration-item")).to_have_count(1)
-    expect(combined_config.locator(".config-facts").first).to_contain_text(
-        "Use project documents for product requirements"
-    )
-    expect(combined_config.locator(".config-facts").first).to_contain_text("gpt-5.5")
-    document_source = combined_config.locator(".source-row").filter(has_text="cocoarynth-documents-source")
-    expect(document_source.locator("h4")).to_have_text("cocoarynth-documents-source")
-    expect(document_source.locator(".source-facts")).to_contain_text("KindsearchIndex")
-    expect(document_source.locator(".source-facts")).to_contain_text("cocoarynth-documents-index")
-    expect(document_source.locator(".source-facts")).to_contain_text("semantic-configuration")
-    style_source = combined_config.locator(".source-row").filter(has_text="cocoarynth-engineering-practices-source")
-    expect(style_source.locator(".source-facts")).to_contain_text("KindsearchIndex")
-    expect(style_source.locator(".source-facts")).to_contain_text("cocoarynth-engineering-practices-index")
-    expect(style_source.locator(".source-facts")).to_contain_text("semantic-configuration")
-    expect(combined_config.get_by_text("Inspect source configuration")).to_have_count(0)
+    page.locator(".nav-group-kb").get_by_role("button", name="Configuration", exact=True).click()
+    expect(page).to_have_url(re.compile(r"/knowledge-base/configuration$"))
+
+    configuration = page.locator("#kb-configuration-details")
+    expect(configuration).to_contain_text("cocoarynth-kb-all")
+    expect(configuration.locator(".configuration-item")).to_have_count(1)
+    expect(configuration).not_to_contain_text("Bearer")
+    expect(configuration).not_to_contain_text("MCP")
+    if not live_smoke:
+        facts = configuration.locator(".config-facts").first
+        expect(facts).to_contain_text("Reranker threshold1.7")
+        expect(facts).to_contain_text("Reasoninglow")
+        expect(facts).to_contain_text("Use farms & harvests")
+        expect(facts).to_contain_text("gpt-5.5")
+    expect(configuration.locator(".source-list > h3")).to_have_text("Knowledge sources · 6")
+    rows = configuration.locator(".source-row")
+    expect(rows.locator("h4")).to_have_text([source.name for source in KNOWLEDGE_SOURCES])
+    for index, source in enumerate(KNOWLEDGE_SOURCES):
+        facts = rows.nth(index).locator(".source-facts")
+        expect(facts).to_contain_text(source.knowledge_source)
+        expect(facts).to_contain_text("KindsearchIndex")
+        expect(facts).to_contain_text(source.index)
+        expect(facts).to_contain_text("semantic-configuration")
 
 
-def test_retrieves_from_combined_knowledge_base(
-    page: Page, live_server_url: str, live_smoke: bool
-) -> None:
+def test_retrieves_from_knowledge_base(page: Page, live_server_url: str, live_smoke: bool) -> None:
     payloads: list[dict] = []
     mock_app_apis(page, live_smoke)
 
     def handle_retrieval(route: Route) -> None:
         payloads.append(route.request.post_data_json)
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(RETRIEVAL))
+        json_response(route, RETRIEVAL)
 
     if live_smoke:
         page.set_default_timeout(180_000)
@@ -745,38 +660,16 @@ def test_retrieves_from_combined_knowledge_base(
         )
     else:
         page.route(re.compile(r".*/api/retrieve$"), handle_retrieval)
-    page.goto(live_server_url)
-    page.locator(".nav-group").filter(has_text="Combined knowledge base").get_by_role("button", name="Query knowledge base", exact=True).click()
-    page.get_by_role("button", name="Search combined KB", exact=True).click()
+    page.goto(f"{live_server_url}knowledge-base/query")
+    page.locator("#kb-query").get_by_role("button", name="Query knowledge base", exact=True).click()
     if live_smoke:
-        expect(page.locator("#combined-kb .kb-output article").first).to_be_visible()
+        expect(page.locator("#kb-output article").first).to_be_visible()
     else:
-        expect(page.locator("#combined-kb .kb-output")).to_contain_text("Mapayca Markets requires CSV.")
-        references = page.locator("#combined-kb .reference-list")
-        expect(references).to_contain_text("API Design and Export Contracts Guide")
-        expect(references).to_contain_text("Generate CSV with a standards-based library.")
+        expect(page.locator("#kb-output")).to_contain_text("Lot MG26-L02 was held on arrival.")
+        expect(page.locator("#kb-output .reference-list")).to_contain_text("Launch moved from 1 September to 1 October.")
 
-    assert [payload["combined"] for payload in payloads] == [True]
-    assert all("prefix" not in payload for payload in payloads)
-
-
-def test_exposes_combined_mcp_config_and_three_call_pages(
-    page: Page, live_server_url: str, live_smoke: bool
-) -> None:
-    mock_app_apis(page, live_smoke)
-    page.goto(live_server_url)
-    page.locator(".nav-group").filter(has_text="Combined knowledge base").get_by_role("button", name="Configuration", exact=True).click()
-    expect(page.locator('#combined-kb-configuration .config-facts > .mcp-strip[data-kb="combined"] code')).to_contain_text(
-        "cocoarynth-kb-all"
-    )
-    expect(page.locator("#combined-kb-configuration .config-facts").first).to_contain_text("MCP URL")
-    page.locator(".nav-group-combined").get_by_role("button", name="Call over MCP", exact=True).click()
-    expect(page.locator('#combined-mcp > .mcp-strip[data-kb="combined"] code')).to_contain_text(
-        "cocoarynth-kb-all"
-    )
-    expect(page.locator("#combined-mcp > .mcp-strip")).to_contain_text("MCP endpoint")
-    expect(page.locator(".mcp-search")).to_have_count(3)
-    expect(page.locator(".nav-group-combined")).to_have_css("border-top-style", "solid")
+    assert len(payloads) == 1
+    assert set(payloads[0]) == {"question"}
 
 
 def test_inventory_error_is_visible(page: Page, live_server_url: str, live_smoke: bool) -> None:

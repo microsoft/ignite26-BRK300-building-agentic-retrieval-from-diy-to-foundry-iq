@@ -177,7 +177,7 @@ class CitedDocumentTests(unittest.TestCase):
 
         self.assertEqual(b"%PDF", content)
         self.assertEqual(
-            ["cocoarynth-quality", "cocoarynth-origins"],
+            ["cocoarynth-origins", "cocoarynth-quality"],
             [call.args[1] for call in service.download_document.call_args_list],
         )
 

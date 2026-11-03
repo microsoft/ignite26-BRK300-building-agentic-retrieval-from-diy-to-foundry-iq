@@ -202,36 +202,17 @@ Not every question requires the expensive path, which creates yet another decisi
 
 ---
 
-## 8. Stop and inspect what we've built
+## 8. Now replace the orchestration with Foundry IQ
 
-This is the DIY architecture reveal.
+### Look what it took
 
-By solving each failure individually, we've accumulated responsibility for:
-
-- simple-vs-complex routing
-- query decomposition
-- multi-source retrieval
-- source selection
-- parallel retrieval
-- combining evidence
-- LLM reranking
-- reflection, iteration, and stopping decisions
-- model calls and prompts throughout the orchestration
-- latency
-- token usage
-- tracing and observability
-- evaluation
-- maintenance
-
-### Key framing
+Open with one slide that shows the whole DIY stack before deleting it: the final architecture, marked with what the application now owns (the prompts, models, thresholds, and round limits). This replaces a separate recap section; the cost of the pipeline was already shown in section 7's setup.
 
 > We built agentic retrieval. Look what it took.
 
 The point is not that DIY is impossible. Building it ourselves exposed the machinery and helped us understand why each capability exists.
 
----
-
-## 9. Now replace the orchestration with Foundry IQ
+### Swap the tool
 
 Swap the DIY tool for the Foundry IQ tool. The agent stays the same, and the tool body becomes one SDK `retrieve()` call.
 
@@ -258,7 +239,7 @@ Contrast the amount of application-side orchestration with the DIY implementatio
 
 ---
 
-## 10. Agentic retrieval under the hood
+## 9. Agentic retrieval under the hood
 
 Now that the audience understands the problems each capability solves, explain the conceptual retrieval flow in more depth.
 
@@ -276,7 +257,7 @@ Connect each capability back to the failure that motivated it earlier in the ses
 
 ---
 
-## 11. DIY vs. Foundry IQ
+## 10. DIY vs. Foundry IQ
 
 Synthesize the comparison around what developers must own.
 
@@ -317,7 +298,7 @@ The comparison should not be "DIY bad, product good." The DIY implementation is 
 
 ---
 
-## 12. Takeaway
+## 11. Takeaway
 
 > Understand the machinery, then decide how much of it you actually want to own.
 
@@ -330,8 +311,7 @@ The progression of the session is:
 5. Too much evidence -> add LLM reranking.
 6. The first pass isn't enough -> add reflection and iteration.
 7. Simple questions don't need the whole pipeline -> add a complexity classifier.
-8. Inspect the complexity we've accumulated.
-9. Replace the DIY orchestration with Foundry IQ, where auto replaces the classifier.
+8. Look at what we've accumulated, then replace the DIY orchestration with Foundry IQ, where auto replaces the classifier.
 
 ---
 
