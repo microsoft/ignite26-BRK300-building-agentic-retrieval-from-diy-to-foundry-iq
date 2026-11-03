@@ -37,6 +37,15 @@ Slides follow this year's Ignite theme, even where it differs from the Cocoarynt
 
 When previewing generated decks, don't script PowerPoint against its active presentation: the user may have other decks open. Use `qlmanage -t` or LibreOffice instead, or ask first.
 
+## Open items for the deck
+
+Track deck TODOs here, not in speaker notes.
+
+- **Switch the Foundry IQ demo to Microsoft Retriever 1 (MR1).** The "Foundry IQ knowledge base" demo slide shows a real MR1 response from an MR1-enabled preview search service (minimal effort, MR1, the same six sources), rendered in the portal with source names shortened. Our subscription's `cocoarynth-kb-all` still uses low reasoning effort with an LLM planner, which picks 3 of the 6 sources. Once MR1 is enabled on our subscription, switch `cocoarynth-kb-all` to MR1 and re-capture the demo live.
+- **Replace the faded minimap.** "Now let's delete most of it" fades the DIY blocks out of `python/diy-complexity-classifier/main.py`. Once a Foundry IQ agent step exists, show its real `main.py` and update the line counts.
+- **Confirm what's public about MR1 before Ignite:** its name, the two-follow-up limit, and pricing ($0.10 per million input tokens, output free). The MR1 slide and the cost slide use all three.
+- **Confirm how auto uses MR1.** The auto slide shows seed search, then MR1 turns, then the LLM query planner. In our preview runs on six sources, auto escalated straight to the LLM planner without an MR1 turn. Confirm the flow with the Foundry IQ team, and whether sending semantic intents instead of chat messages changes it.
+
 ## Development Tips
 
 ### Start the portal locally
