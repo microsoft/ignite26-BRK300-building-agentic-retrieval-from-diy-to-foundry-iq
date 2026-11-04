@@ -12,8 +12,7 @@ from app.backend.naming import KNOWLEDGE_SOURCES
 expect.set_options(timeout=180_000)
 
 KNOWLEDGE_BASE_QUESTION = (
-    "Why did the Madagascar limited-edition bar with cacao nibs launch on 1 October instead of 1 September, "
-    "and what happened at the estate to start the delay?"
+    "What happened at the estate that delayed the launch of the Madagascar limited-edition bar with cacao nibs?"
 )
 AZURE_OPENAI_SCOPE = "https://cognitiveservices.azure.com/.default"
 Judge = Callable[[str, str, str, str], str]
@@ -124,9 +123,8 @@ def test_knowledge_base_live_workflow(page: Page, live_portal_url: str, azure_op
         output.inner_text(),
         references.inner_text(),
         (
-            "PASS only if the retrieved evidence explains why the Madagascar limited-edition launch moved from "
-            "1 September to 1 October and includes evidence about what happened at the estate, with at least "
-            "one relevant reference."
+            "PASS only if the retrieved evidence explains what happened at Tsaravola Estate (rain that cut drying "
+            "short) and links it to the delayed Madagascar limited-edition launch, with at least one relevant reference."
         ),
     )
     assert verdict.upper().startswith("PASS"), verdict

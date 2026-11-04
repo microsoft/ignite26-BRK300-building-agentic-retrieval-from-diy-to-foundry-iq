@@ -86,7 +86,7 @@ class SummarizeResponseTests(unittest.TestCase):
     def test_every_step_has_its_own_port(self) -> None:
         ports = [step.port for step in DIY_STEPS]
 
-        self.assertEqual(7, len(DIY_STEPS))
+        self.assertEqual(8, len(DIY_STEPS))
         self.assertEqual(len(ports), len(set(ports)))
 
 

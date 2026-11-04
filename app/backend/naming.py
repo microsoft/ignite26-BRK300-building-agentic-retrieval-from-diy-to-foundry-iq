@@ -89,5 +89,8 @@ KNOWLEDGE_SOURCES = (
     ),
 )
 KNOWLEDGE_SOURCES_BY_KEY = {source.key: source for source in KNOWLEDGE_SOURCES}
+# All Cocoarynth company records in one index, for the strategies that search a single index.
+COMBINED_INDEX = "cocoarynth-all-index"
+COMBINED_INDEX_SOURCE_KEYS = ("origins", "quality", "logistics-retail", "policies")
 KNOWLEDGE_BASE = "cocoarynth-kb-all"
 OBSOLETE_KNOWLEDGE_BASES = ("cocoarynth-kb-docs", "cocoarynth-kb-engineering-practices")

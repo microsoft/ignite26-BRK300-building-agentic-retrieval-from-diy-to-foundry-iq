@@ -10,6 +10,7 @@ from azure.core.exceptions import HttpResponseError, ResourceExistsError
 from app.backend.config import Settings
 from scripts.preingest import (
     ENGINEERING_PRACTICE_CORPUS,
+    build_combined_index,
     build_indexer_payloads,
     ingest_corpora,
     ingest_with_retry,
@@ -102,6 +103,7 @@ class IngestCorpusTests(unittest.TestCase):
             "engineering-practice-images",
         )
 
+    @patch("scripts.preingest.build_combined_index", return_value=103)
     @patch("scripts.preingest.wait_for_indexer", return_value=12)
     @patch("scripts.preingest.put_preview_resource")
     @patch("scripts.preingest.SearchIndexerClient")
@@ -114,6 +116,7 @@ class IngestCorpusTests(unittest.TestCase):
         indexer_client_type: Mock,
         put_resource: Mock,
         wait: Mock,
+        build_combined: Mock,
     ) -> None:
         sync_corpus.return_value = {"uploaded": ["one.pdf"], "skipped": [], "deleted": []}
         service = Mock()
@@ -136,6 +139,8 @@ class IngestCorpusTests(unittest.TestCase):
         )
 
         service.create_knowledge_base.assert_called_once_with()
+        build_combined.assert_called_once_with(service)
+        self.assertEqual(result["combined"]["indexedItems"], 103)
         self.assertEqual(result["documents"]["indexedItems"], 12)
         self.assertEqual(result["engineeringPractices"]["removedChunks"], 4)
         cocoarynth = [
@@ -171,6 +176,48 @@ class IngestCorpusTests(unittest.TestCase):
 
         self.assertEqual(result, {"uploaded": [], "skipped": []})
         sleep.assert_called_once_with(1)
+
+
+class CombinedIndexTests(unittest.TestCase):
+    @patch("scripts.preingest.clear_index_documents", return_value=0)
+    @patch("scripts.preingest.embed_texts")
+    @patch("scripts.preingest.SearchClient")
+    def test_copies_cocoarynth_chunks_with_new_vectors(
+        self, search_client_type: Mock, embed: Mock, clear_documents: Mock
+    ) -> None:
+        chunk = {
+            "chunk_id": "c1",
+            "parent_id": "p1",
+            "title": "hold-notice-mg26-l02.pdf",
+            "blob_path": "https://example/hold-notice-mg26-l02.pdf",
+            "chunk": "Lot MG26-L02 held at 8.6% moisture.",
+            "page_number_from": 1,
+            "page_number_to": 1,
+            "image_path": None,
+        }
+        source = Mock()
+        source.search.return_value = [{**chunk, "@search.score": 1.0}]
+        target = Mock()
+        search_client_type.side_effect = [target, source, source, source, source]
+        embed.return_value = [[0.1, 0.2]]
+        service = Mock()
+
+        copied = build_combined_index(service)
+
+        self.assertEqual(copied, 4)
+        self.assertEqual(
+            [call.args[1] for call in search_client_type.call_args_list],
+            [
+                "cocoarynth-all-index",
+                "cocoarynth-origins-index",
+                "cocoarynth-quality-index",
+                "cocoarynth-logistics-retail-index",
+                "cocoarynth-policies-index",
+            ],
+        )
+        clear_documents.assert_called_once_with(service, "cocoarynth-all-index")
+        uploaded = target.upload_documents.call_args.kwargs["documents"]
+        self.assertEqual(uploaded, [{**chunk, "text_vector": [0.1, 0.2]}])
 
 
 if __name__ == "__main__":

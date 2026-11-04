@@ -345,6 +345,7 @@ The knowledge sources are:
 {json.dumps(SOURCE_DESCRIPTIONS, indent=2)}
 If information is missing, plan follow-up searches for it.
 Use specific names, terms, or references found in the evidence to target those searches.
+Word each follow-up query the way the missing document would describe it, not like the evidence you already have.
 Do not repeat searches that have already run."""
 
 

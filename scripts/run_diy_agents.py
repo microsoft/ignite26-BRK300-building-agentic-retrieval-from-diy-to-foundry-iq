@@ -1,4 +1,4 @@
-"""Run every DIY retrieval agent locally, each on its own port, for the portal's DIY agents page.
+"""Run every DIY retrieval agent, and the Foundry IQ agent, locally, each on its own port, for the portal's DIY agents page.
 
 Usage: python -m scripts.run_diy_agents [step-name ...]
 """
@@ -15,7 +15,7 @@ from app.backend.diy_agents import DIY_STEPS, DIY_STEPS_BY_NAME, DiyStep
 
 AGENTS_DIR = Path(__file__).parents[1] / "python"
 # The agent server logs every telemetry span to the console; only show its activity log, startup, and errors.
-RELEVANT_LINE = re.compile(r"^(INFO:diy-|ERROR|WARNING:agent_framework|Traceback|\S*Error: |INFO:hypercorn\.error:Running on)")
+RELEVANT_LINE = re.compile(r"^(INFO:(?:diy-|foundry-iq)|ERROR|WARNING:agent_framework|Traceback|\S*Error: |INFO:hypercorn\.error:Running on)")
 
 
 def ensure_venv(step_dir: Path) -> Path:

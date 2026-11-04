@@ -36,10 +36,7 @@ PRICIEST_BEANS = (
     "Which origin's beans cost Cocoarynth the most in 2026, and was it worth paying for them, "
     "judging by taste and sales?"
 )
-MADAGASCAR_LAUNCH = (
-    "Why did the Madagascar limited-edition bar with cacao nibs launch on 1 October instead of 1 September, "
-    "and what happened at the estate to start the delay?"
-)
+MADAGASCAR_ESTATE = "What happened at the estate that delayed the launch of the Madagascar limited-edition bar with cacao nibs?"
 MULTI_SOURCE_EXAMPLES = (
     Example("Multi-source: grey Ghana bars", GHANA_BARS),
     Example("Multi-source: priciest beans", PRICIEST_BEANS),
@@ -49,7 +46,7 @@ DIY_STEPS = (
     DiyStep(
         "diy-baseline",
         "Baseline",
-        "One hybrid search with semantic ranking over the quality index.",
+        "One hybrid search with semantic ranking over one index of Cocoarynth's records.",
         8091,
         (TASTING_PANEL, Example("Fails: Madagascar panel and hold", MADAGASCAR_PANEL)),
     ),
@@ -60,42 +57,39 @@ DIY_STEPS = (
         8092,
         (
             Example("Succeeds: Madagascar panel and hold", MADAGASCAR_PANEL),
-            Example("Fails: grey Ghana bars", GHANA_BARS),
+            Example("Fails: Madagascar estate delay", MADAGASCAR_ESTATE),
+        ),
+    ),
+    DiyStep(
+        "diy-reflection",
+        "Reflection",
+        "An LLM checks the evidence and plans follow-up searches until it is sufficient.",
+        8093,
+        (
+            Example("Succeeds: Madagascar estate delay", MADAGASCAR_ESTATE),
+            Example("One round: Madagascar panel and hold", MADAGASCAR_PANEL),
         ),
     ),
     DiyStep(
         "diy-multi-source-fanout",
         "Multi-source fan-out",
-        "Every query runs against every index.",
-        8093,
+        "Every query, including follow-ups, runs against every index.",
+        8094,
         MULTI_SOURCE_EXAMPLES,
     ),
     DiyStep(
         "diy-source-selection",
         "Source selection",
         "The planner sends each query only to the indexes likely to answer it.",
-        8094,
+        8095,
         MULTI_SOURCE_EXAMPLES,
     ),
     DiyStep(
         "diy-llm-reranking",
         "LLM reranking",
         "A ranking model (Microsoft-Decision-1) scores the merged results and keeps the most relevant evidence.",
-        8095,
-        MULTI_SOURCE_EXAMPLES,
-    ),
-    DiyStep(
-        "diy-reflection",
-        "Reflection",
-        "An LLM checks the evidence and plans follow-up searches until it is sufficient.",
         8096,
-        (
-            Example("Needs reflection: late Madagascar launch", MADAGASCAR_LAUNCH),
-            Example(
-                "One round: organic seal",
-                "Can Cocoarynth print the organic seal on the Peru Bagua 70% bars packed in September 2026?",
-            ),
-        ),
+        MULTI_SOURCE_EXAMPLES,
     ),
     DiyStep(
         "diy-complexity-classifier",
@@ -104,7 +98,18 @@ DIY_STEPS = (
         8097,
         (
             Example("Simple: storage temperature", "What is the recommended storage temperature for chocolate bars?"),
-            Example("Complex: late Madagascar launch", MADAGASCAR_LAUNCH),
+            Example("Complex: Madagascar estate delay", MADAGASCAR_ESTATE),
+        ),
+    ),
+    DiyStep(
+        "foundry-iq",
+        "Foundry IQ",
+        "One call to a Foundry IQ knowledge base, which plans, searches, ranks, and decides when to stop.",
+        8098,
+        (
+            Example("Trail: Madagascar estate delay", MADAGASCAR_ESTATE),
+            Example("Two parts: Madagascar panel and hold", MADAGASCAR_PANEL),
+            Example("Simple: storage temperature", "What is the recommended storage temperature for chocolate bars?"),
         ),
     ),
 )

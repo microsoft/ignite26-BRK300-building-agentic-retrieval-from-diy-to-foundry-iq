@@ -21,7 +21,7 @@ logger = logging.getLogger("diy-baseline")
 PROJECT_ENDPOINT = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
 MODEL_DEPLOYMENT_NAME = os.environ["FOUNDRY_MODEL_DEPLOYMENT_NAME"]
 SEARCH_ENDPOINT = os.environ["FOUNDRY_IQ_SEARCH_ENDPOINT"]
-INDEX_NAME = "cocoarynth-quality-index"
+INDEX_NAME = "cocoarynth-all-index"
 
 credential = (
     ManagedIdentityCredential()
@@ -60,9 +60,9 @@ async def hybrid_search(query: str, top: int = 5) -> list[dict[str, Any]]:
 
 @tool
 async def search_knowledge(
-    query: Annotated[str, Field(description="A search query for Cocoarynth's quality records.")],
+    query: Annotated[str, Field(description="A search query for Cocoarynth's company records.")],
 ) -> dict[str, Any]:
-    """Search Cocoarynth's quality records with hybrid search and semantic ranking."""
+    """Search Cocoarynth's company records with hybrid search and semantic ranking."""
     started = time.perf_counter()
     results = await hybrid_search(query)
     elapsed = time.perf_counter() - started
@@ -82,7 +82,8 @@ async def main() -> None:
     agent = Agent(
         client=chat_client,
         name="diy-baseline",
-        instructions="""You answer questions about Cocoarynth Chocolate Works, a bean-to-bar chocolate maker.
+        instructions="""You answer questions about Cocoarynth Chocolate Works, a bean-to-bar
+        chocolate maker, from its company records.
         Always call search_knowledge before answering, and answer only from the evidence it returns.
         Cite the title of each document you use in square brackets.
         If the evidence does not answer every part of the question, say what is missing.""",

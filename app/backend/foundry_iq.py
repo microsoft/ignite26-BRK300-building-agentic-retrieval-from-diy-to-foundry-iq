@@ -28,7 +28,9 @@ from azure.storage.blob import BlobServiceClient
 from .config import Settings
 from .naming import KNOWLEDGE_BASE, KNOWLEDGE_SOURCES, OBSOLETE_KNOWLEDGE_BASES
 
-RERANKER_THRESHOLD = 1.7
+# Keep only chunks the semantic ranker scores as relevant (0-4 scale). With fewer, cleaner chunks,
+# Microsoft Retriever 1 can tell when evidence is missing and search again.
+RERANKER_THRESHOLD = 2.0
 CHUNK_FIELDS = [
     "chunk_id",
     "parent_id",

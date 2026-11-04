@@ -137,7 +137,7 @@ class FoundryIqServiceTests(unittest.TestCase):
             [spec.knowledge_source for spec in KNOWLEDGE_SOURCES],
         )
         for source in request.knowledge_source_params:
-            self.assertEqual(source.reranker_threshold, 1.7)
+            self.assertEqual(source.reranker_threshold, 2.0)
             self.assertTrue(source.include_references)
             self.assertTrue(source.include_reference_source_data)
 
@@ -159,7 +159,7 @@ class FoundryIqServiceTests(unittest.TestCase):
             [call.args[0] for call in self.service.index_client.get_knowledge_source.call_args_list],
             [spec.knowledge_source for spec in KNOWLEDGE_SOURCES],
         )
-        self.assertEqual(result["knowledgeBase"]["rerankerThreshold"], 1.7)
+        self.assertEqual(result["knowledgeBase"]["rerankerThreshold"], 2.0)
         self.assertEqual(len(result["knowledgeSources"]), 6)
         self.assertNotIn("mcp", serialized.lower())
         self.assertNotIn("Bearer secret", serialized)

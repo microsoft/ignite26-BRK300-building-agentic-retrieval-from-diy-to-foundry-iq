@@ -1,4 +1,4 @@
-"""DIY agentic retrieval, step 5: a ranking model reranks the combined evidence from every search."""
+"""DIY agentic retrieval, step 6: a ranking model reranks the combined evidence from every search."""
 
 import asyncio
 import json
@@ -53,6 +53,7 @@ SourceName = Literal[
 ]
 MIN_RELEVANCE = 2
 MAX_EVIDENCE = 8
+MAX_ROUNDS = 3
 
 # "decision" scores relevance with Microsoft-Decision-1; "chat" asks the chat model. Decision-1 measured
 # about 3x faster and kept nearly the same chunks.
@@ -196,6 +197,26 @@ Use a single search when the question has only one information need.
 Send each search only to the sources likely to contain its answer."""
 
 
+async def run_searches(
+    planned_searches: list[PlannedSearch], activity: ActivityLog, round_number: int
+) -> list[list[dict[str, Any]]]:
+    started = time.perf_counter()
+    searches = [(source, planned.query) for planned in planned_searches for source in planned.sources]
+    async with asyncio.TaskGroup() as group:
+        tasks = [group.create_task(hybrid_search(source, query)) for source, query in searches]
+    result_lists = [task.result() for task in tasks]
+    activity.record(
+        "parallel_search",
+        started,
+        round=round_number,
+        searches=[
+            {"index": SOURCE_INDEXES[source], "query": query, "result_count": len(results)}
+            for (source, query), results in zip(searches, result_lists)
+        ],
+    )
+    return result_lists
+
+
 class RelevanceJudgment(BaseModel):
     id: str
     relevance: int = Field(
@@ -208,7 +229,8 @@ class Ranking(BaseModel):
 
 
 RERANKER_INSTRUCTIONS = """You judge how well each search result helps answer the user's question.
-Judge every result on its own content, regardless of which search returned it."""
+Judge every result on its own content, regardless of which search returned it.
+If still_missing is given, judge how well each result supplies that missing information."""
 
 
 def short_labels(count: int) -> list[str]:
@@ -232,19 +254,24 @@ RELEVANCE_LEVELS = [
 
 
 async def score_with_decision_model(
-    question: str, labels: list[str], candidates: list[dict[str, Any]]
+    question: str, labels: list[str], candidates: list[dict[str, Any]], missing: str | None
 ) -> tuple[dict[str, float], dict[str, Any]]:
-    state = {
+    state: dict[str, Any] = {
         "question": question,
         "results": {
             label: {"title": candidate["title"], "content": candidate["content"]}
             for label, candidate in zip(labels, candidates)
         },
     }
+    instructions = "How well does search result {label} help answer the question?"
+    if missing:
+        # Follow-up results target one gap. Scored against the whole question, they look only partly relevant.
+        state["still_missing"] = missing
+        instructions = "How well does search result {label} supply what is still missing from the answer?"
     questions = {
         f"relevance_{label}": {
             "type": "score",
-            "instructions": f"How well does search result {label} help answer the question?",
+            "instructions": instructions.format(label=label),
             "criteria": RELEVANCE_LEVELS,
         }
         for label in labels
@@ -254,11 +281,12 @@ async def score_with_decision_model(
 
 
 async def score_with_chat_model(
-    question: str, labels: list[str], candidates: list[dict[str, Any]]
+    question: str, labels: list[str], candidates: list[dict[str, Any]], missing: str | None
 ) -> tuple[dict[str, float], dict[str, Any]]:
     prompt = json.dumps(
         {
             "question": question,
+            "still_missing": missing,
             "results": [
                 {"id": label, "title": candidate["title"], "content": candidate["content"]}
                 for label, candidate in zip(labels, candidates)
@@ -269,15 +297,21 @@ async def score_with_chat_model(
     return {judgment.id: judgment.relevance for judgment in ranking.judgments}, llm_call
 
 
-async def rerank(question: str, candidates: list[dict[str, Any]], activity: ActivityLog) -> list[dict[str, Any]]:
+async def rerank(
+    question: str,
+    candidates: list[dict[str, Any]],
+    activity: ActivityLog,
+    round_number: int,
+    missing: str | None = None,
+) -> list[dict[str, Any]]:
     started = time.perf_counter()
     # Chunk IDs are long, and copying them back is slow output. Label candidates A, B, C... instead.
     labels = short_labels(len(candidates))
     if RERANKER == "decision":
-        relevance, llm_call = await score_with_decision_model(question, labels, candidates)
+        relevance, llm_call = await score_with_decision_model(question, labels, candidates, missing)
         min_relevance = DECISION_MIN_RELEVANCE
     else:
-        relevance, llm_call = await score_with_chat_model(question, labels, candidates)
+        relevance, llm_call = await score_with_chat_model(question, labels, candidates, missing)
         min_relevance = MIN_RELEVANCE
     ranked = sorted(
         (
@@ -288,8 +322,51 @@ async def rerank(question: str, candidates: list[dict[str, Any]], activity: Acti
         key=lambda candidate: candidate["relevance"],
         reverse=True,
     )[:MAX_EVIDENCE]
-    activity.record("reranking", started, llm_call, candidate_count=len(candidates), kept_count=len(ranked))
+    activity.record(
+        "reranking", started, llm_call, round=round_number, candidate_count=len(candidates), kept_count=len(ranked)
+    )
     return ranked
+
+
+class Reflection(BaseModel):
+    sufficient: bool = Field(description="True if the evidence answers every part of the question.")
+    missing: str = Field(description="What information is still missing, or an empty string.")
+    follow_up_searches: list[PlannedSearch] = Field(description="Searches for the missing information, if any.")
+
+
+REFLECTION_INSTRUCTIONS = f"""You check whether search evidence fully answers the user's question.
+The knowledge sources are:
+{json.dumps(SOURCE_DESCRIPTIONS, indent=2)}
+If information is missing, plan follow-up searches for it.
+Use specific names, terms, or references found in the evidence to target those searches.
+Word each follow-up query the way the missing document would describe it, not like the evidence you already have.
+Do not repeat searches that have already run."""
+
+
+async def reflect(
+    question: str, evidence: list[dict[str, Any]], searched: list[str], activity: ActivityLog, round_number: int
+) -> Reflection:
+    started = time.perf_counter()
+    prompt = json.dumps(
+        {
+            "question": question,
+            "searches_already_run": searched,
+            "evidence": [{"title": item["title"], "content": item["content"]} for item in evidence],
+        }
+    )
+    # Low effort measured best: "none" missed multi-hop gaps (a lot code that needs another lookup),
+    # while medium and high were no more accurate and took up to twice as long.
+    reflection, llm_call = await ask_llm(REFLECTION_INSTRUCTIONS, prompt, Reflection, reasoning_effort="low")
+    activity.record(
+        "reflection",
+        started,
+        llm_call,
+        round=round_number,
+        sufficient=reflection.sufficient,
+        missing=reflection.missing,
+        follow_up_searches=describe_searches(reflection.follow_up_searches),
+    )
+    return reflection
 
 
 @tool
@@ -303,21 +380,31 @@ async def search_knowledge(
     plan, llm_call = await ask_llm(PLANNER_INSTRUCTIONS, question, QueryPlan)
     activity.record("query_planning", started, llm_call, searches=describe_searches(plan.searches))
 
-    started = time.perf_counter()
-    searches = [(source, planned.query) for planned in plan.searches for source in planned.sources]
-    async with asyncio.TaskGroup() as group:
-        tasks = [group.create_task(hybrid_search(source, query)) for source, query in searches]
-    result_lists = [task.result() for task in tasks]
-    activity.record(
-        "parallel_search",
-        started,
-        searches=[
-            {"index": SOURCE_INDEXES[source], "query": query, "result_count": len(results)}
-            for (source, query), results in zip(searches, result_lists)
-        ],
-    )
+    planned_searches = plan.searches
+    searched: list[str] = []
+    evidence: list[dict[str, Any]] = []
+    missing: str | None = None
+    for round_number in range(1, MAX_ROUNDS + 1):
+        result_lists = await run_searches(planned_searches, activity, round_number)
+        searched += [planned.query for planned in planned_searches]
 
-    evidence = await rerank(question, combine_results(result_lists), activity)
+        known_ids = {item["id"] for item in evidence}
+        new_candidates = [result for result in combine_results(result_lists) if result["id"] not in known_ids]
+        if new_candidates:
+            ranked = await rerank(question, new_candidates, activity, round_number, missing)
+            # Follow-up results fill a gap the earlier evidence left, so they get up to half the slots
+            # instead of competing on score with evidence for other parts of the question.
+            follow_up = ranked[: MAX_EVIDENCE // 2] if evidence else ranked
+            evidence = follow_up + evidence[: MAX_EVIDENCE - len(follow_up)]
+
+        if round_number == MAX_ROUNDS:
+            break
+        reflection = await reflect(question, evidence, searched, activity, round_number)
+        if reflection.sufficient or not reflection.follow_up_searches:
+            break
+        planned_searches = reflection.follow_up_searches
+        missing = reflection.missing
+
     return {"evidence": evidence, "activity": activity.steps}
 
 

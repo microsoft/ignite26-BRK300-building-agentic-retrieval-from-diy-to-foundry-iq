@@ -337,6 +337,8 @@ function activityLabel(activity) {
     "diy:reranking": "Reranking",
     "diy:reflection": "Reflection",
     "diy:complexity_routing": "Complexity routing",
+    "diy:retrieval_decision": "Retrieval decision",
+    "diy:semantic_ranking": "Semantic ranking",
   })[activity.type] || activity.type || "Activity";
   return activity.round ? `${label} · round ${activity.round}` : label;
 }
@@ -545,6 +547,12 @@ function appendDiyActivityDetails(details, activity) {
       appendActivityFact(details, "Route", activity.route);
       appendActivityFact(details, "Agentic probability", activity.agentic_probability);
       appendActivityFact(details, "Reason", activity.reason);
+      break;
+    case "diy:retrieval_decision":
+      appendActivityFact(details, "Decision", activity.decision);
+      break;
+    case "diy:semantic_ranking":
+      appendActivityFact(details, "Ranking tokens", activity.ranking_tokens?.toLocaleString());
       break;
   }
 }

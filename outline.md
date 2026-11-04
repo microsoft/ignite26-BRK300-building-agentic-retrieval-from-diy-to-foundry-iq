@@ -33,7 +33,7 @@ The core framing:
 
 ### Demo question
 
-A simple, single-fact question that one hybrid search answers well. Reuse it in section 7.
+A simple, single-fact question that one hybrid search answers well. Reuse it in section 8.
 
 ### Key point
 
@@ -70,7 +70,47 @@ The audience should now understand why agentic retrieval may need to turn one co
 
 ---
 
-## 3. Failure #2: The evidence lives across sources
+## 3. Failure #2: The first pass isn't enough
+
+### Show the failure
+
+Ask a question where the first round of results reveals something (a term, entity, or reference) that a follow-up search must look up. A single planning pass can't anticipate it.
+
+### What this motivates
+
+**Reflection and iteration**
+
+### DIY: reflect and search again
+
+**Evidence -> LLM reflection: is this sufficient? -> if not, plan follow-up queries -> search again -> stop**
+
+- The LLM inspects the evidence and decides whether to search again.
+- The application owns the stopping rule: maximum iterations plus token and latency budgets.
+- The activity log shows each round: queries, results, and the reflection decision.
+
+### Key point
+
+> Reflection turns a pipeline into a loop, and loops need stopping rules.
+
+---
+
+## 4. Foundry IQ on one index: Microsoft Retriever 1
+
+### Pause the DIY story
+
+Part 1 searched one index, like most apps do. Show what Foundry IQ does with the same index.
+
+- A seed search with the question as written, then Microsoft Retriever 1 (MR1), a small task-specific model, reads the evidence and returns "search" or "finish". It replaces the DIY query planner and reflection prompts.
+- Demo the same questions on a one-index knowledge base with MR1.
+- Comparison 1: DIY baseline, decomposition, and reflection vs. Foundry IQ with MR1: latency, model calls, tokens, and cost per question.
+
+### Key point
+
+> On one index, a task-specific model does the planning and reflection we wrote prompts for.
+
+---
+
+## 5. Failure #3: The evidence lives across sources
 
 ### Show the next failure
 
@@ -98,7 +138,7 @@ This is a separate problem from query decomposition and should be introduced as 
 
 ---
 
-## 4. Failure #3: Not every source is relevant
+## 6. Failure #4: Not every source is relevant
 
 ### Show the failure
 
@@ -126,7 +166,7 @@ Introduce it after fan-out so the audience sees the cost it removes.
 
 ---
 
-## 5. Failure #4: Now we have a pile of evidence
+## 7. Failure #5: Now we have a pile of evidence
 
 Multiple queries across multiple sources produce many candidate results. Scores from different queries and sources aren't directly comparable, and the best evidence gets buried or overflows the context budget.
 
@@ -154,31 +194,7 @@ A specialized model is another DIY option. Microsoft-Decision-1 returns typed sc
 
 ---
 
-## 6. Failure #5: The first pass isn't enough
-
-### Show the failure
-
-Ask a question where the first round of results reveals something (a term, entity, or reference) that a follow-up search must look up. A single planning pass can't anticipate it.
-
-### What this motivates
-
-**Reflection and iteration**
-
-### DIY: reflect and search again
-
-**Ranked evidence -> LLM reflection: is this sufficient? -> if not, plan follow-up queries -> search again -> stop**
-
-- The LLM inspects the evidence and decides whether to search again.
-- The application owns the stopping rule: maximum iterations plus token and latency budgets.
-- The activity log shows each round: queries, results, and the reflection decision.
-
-### Key point
-
-> Reflection turns a pipeline into a loop, and loops need stopping rules.
-
----
-
-## 7. New problem: we're doing all this for every question
+## 8. New problem: we're doing all this for every question
 
 Return to the simple question from section 1 that the original Foundry IQ search call answered perfectly well.
 
@@ -202,11 +218,11 @@ Not every question requires the expensive path, which creates yet another decisi
 
 ---
 
-## 8. Now replace the orchestration with Foundry IQ
+## 9. Now replace the orchestration with Foundry IQ
 
 ### Look what it took
 
-Open with one slide that shows the whole DIY stack before deleting it: the final architecture, marked with what the application now owns (the prompts, models, thresholds, and round limits). This replaces a separate recap section; the cost of the pipeline was already shown in section 7's setup.
+Open with one slide that shows the whole DIY stack before deleting it: the final architecture, marked with what the application now owns (the prompts, models, thresholds, and round limits). This replaces a separate recap section; the cost of the pipeline was already shown in section 8's setup.
 
 > We built agentic retrieval. Look what it took.
 
@@ -229,7 +245,7 @@ Show how the managed retrieval experience handles the capabilities that were pro
 
 ### Auto replaces the classifier
 
-Contrast explicitly with section 7: with Foundry IQ's auto behavior, the DIY complexity classifier goes away. Foundry IQ decides how much agentic retrieval each question needs.
+Contrast explicitly with section 8: with Foundry IQ's auto behavior, the DIY complexity classifier goes away. Foundry IQ decides how much agentic retrieval each question needs.
 
 ### Payoff
 
@@ -239,7 +255,7 @@ Contrast the amount of application-side orchestration with the DIY implementatio
 
 ---
 
-## 9. Agentic retrieval under the hood
+## 10. Agentic retrieval under the hood
 
 Now that the audience understands the problems each capability solves, explain the conceptual retrieval flow in more depth.
 
@@ -257,7 +273,7 @@ Connect each capability back to the failure that motivated it earlier in the ses
 
 ---
 
-## 10. DIY vs. Foundry IQ
+## 11. DIY vs. Foundry IQ
 
 Synthesize the comparison around what developers must own.
 
@@ -298,7 +314,7 @@ The comparison should not be "DIY bad, product good." The DIY implementation is 
 
 ---
 
-## 11. Takeaway
+## 12. Takeaway
 
 > Understand the machinery, then decide how much of it you actually want to own.
 
@@ -306,12 +322,13 @@ The progression of the session is:
 
 1. One strong retrieval works.
 2. A multi-part question breaks it -> add query decomposition.
-3. Evidence across sources breaks that -> add multi-source fan-out.
-4. Fan-out searches irrelevant sources -> add source selection.
-5. Too much evidence -> add LLM reranking.
-6. The first pass isn't enough -> add reflection and iteration.
-7. Simple questions don't need the whole pipeline -> add a complexity classifier.
-8. Look at what we've accumulated, then replace the DIY orchestration with Foundry IQ, where auto replaces the classifier.
+3. The first pass isn't enough -> add reflection and iteration.
+4. Foundry IQ on one index: Microsoft Retriever 1 replaces planning and reflection. Comparison 1.
+5. Evidence across sources breaks that -> add multi-source fan-out.
+6. Fan-out searches irrelevant sources -> add source selection.
+7. Too much evidence -> add LLM reranking.
+8. Simple questions don't need the whole pipeline -> add a complexity classifier.
+9. Foundry IQ auto replaces the classifier. Comparison 2. Look at what we've accumulated, then replace the DIY orchestration with Foundry IQ.
 
 ---
 

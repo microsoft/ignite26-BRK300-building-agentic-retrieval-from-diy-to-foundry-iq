@@ -182,7 +182,7 @@ CONFIGURATION = {
         "name": "cocoarynth-kb-all",
         "description": "Cocoarynth chocolate company knowledge",
         "outputMode": "extractiveData",
-        "rerankerThreshold": 1.7,
+        "rerankerThreshold": 2.0,
         "retrievalReasoningEffort": {"kind": "low"},
         "retrievalInstructions": "Use farms & harvests for origin, farm, fermentation, certification, and bean price records.",
         "models": [
@@ -597,7 +597,7 @@ def test_query_knowledge_base_workflow(page: Page, live_server_url: str, live_sm
     page.locator(".nav-group-kb").get_by_role("button", name="Query knowledge base", exact=True).click()
 
     question = page.locator("#kb-query textarea")
-    expect(question).to_have_value(re.compile(r"^Why did the Madagascar limited-edition bar with cacao nibs launch"))
+    expect(question).to_have_value(re.compile(r"^What happened at the estate that delayed the launch"))
     default_question = question.input_value()
     page.locator("#kb-query").get_by_role("button", name="Query knowledge base").click()
 
@@ -627,7 +627,7 @@ def test_displays_knowledge_base_configuration(page: Page, live_server_url: str,
     expect(configuration).not_to_contain_text("MCP")
     if not live_smoke:
         facts = configuration.locator(".config-facts").first
-        expect(facts).to_contain_text("Reranker threshold1.7")
+        expect(facts).to_contain_text("Reranker threshold2Reasoning")
         expect(facts).to_contain_text("Reasoninglow")
         expect(facts).to_contain_text("Use farms & harvests")
         expect(facts).to_contain_text("gpt-5.5")

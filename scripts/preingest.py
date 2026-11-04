@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+import httpx2
 from azure.core.exceptions import (
     HttpResponseError,
     ResourceExistsError,
@@ -20,8 +21,12 @@ from azure.search.documents.indexes.models import SearchIndex
 from azure.storage.blob import BlobServiceClient, ContainerClient
 
 from app.backend.config import Settings
-from app.backend.foundry_iq import FoundryIqService
-from app.backend.naming import KNOWLEDGE_SOURCES_BY_KEY
+from app.backend.foundry_iq import CHUNK_FIELDS, FoundryIqService
+from app.backend.naming import (
+    COMBINED_INDEX,
+    COMBINED_INDEX_SOURCE_KEYS,
+    KNOWLEDGE_SOURCES_BY_KEY,
+)
 
 DOCUMENT_CORPUS_DIR = Path(__file__).parents[1] / "documents"
 ENGINEERING_PRACTICE_CORPUS_DIR = DOCUMENT_CORPUS_DIR / "engineering-practices"
@@ -31,6 +36,8 @@ VECTOR_PROFILE = "vector-search-profile"
 EMBEDDING_DIMENSIONS = 3072
 INDEXER_POLL_SECONDS = 10
 INDEXER_TIMEOUT = timedelta(minutes=30)
+EMBEDDING_BATCH_SIZE = 16
+EMBEDDING_API_VERSION = "2024-10-21"
 
 
 @dataclass(frozen=True)
@@ -456,6 +463,57 @@ def ingest_corpus(
     return {**files, "removedChunks": removed_chunks, "indexedItems": indexed_items}
 
 
+def embed_texts(settings: Settings, credential: Any, texts: list[str]) -> list[list[float]]:
+    token = credential.get_token("https://cognitiveservices.azure.com/.default").token
+    for attempt in range(8):
+        response = httpx2.post(
+            f"{settings.openai_endpoint}/openai/deployments/{settings.embedding_deployment}/embeddings",
+            params={"api-version": EMBEDDING_API_VERSION},
+            headers={"Authorization": f"Bearer {token}"},
+            json={"input": texts, "dimensions": EMBEDDING_DIMENSIONS},
+            timeout=120,
+        )
+        if response.status_code != 429 or attempt == 7:
+            break
+        time.sleep(float(response.headers.get("retry-after", 2**attempt)))
+    response.raise_for_status()
+    return [item["embedding"] for item in sorted(response.json()["data"], key=lambda item: item["index"])]
+
+
+def build_combined_index(service: FoundryIqService) -> int:
+    """Copy every Cocoarynth chunk into one index, for the strategies that search a single index.
+
+    Copying keeps the chunks identical to the per-source indexes. Vectors aren't retrievable, so each chunk is
+    embedded again with the same model.
+    """
+    service.index_client.create_or_update_index(build_index(service.settings, COMBINED_INDEX))
+    clear_index_documents(service, COMBINED_INDEX)
+    target = SearchClient(service.settings.search_endpoint, COMBINED_INDEX, service.credential)
+    copied = 0
+    try:
+        for source_key in COMBINED_INDEX_SOURCE_KEYS:
+            source = SearchClient(
+                service.settings.search_endpoint, KNOWLEDGE_SOURCES_BY_KEY[source_key].index, service.credential
+            )
+            try:
+                chunks = [
+                    {field: result[field] for field in CHUNK_FIELDS}
+                    for result in source.search("*", select=CHUNK_FIELDS, top=1000)
+                ]
+            finally:
+                source.close()
+            for start in range(0, len(chunks), EMBEDDING_BATCH_SIZE):
+                batch = chunks[start : start + EMBEDDING_BATCH_SIZE]
+                vectors = embed_texts(service.settings, service.credential, [chunk["chunk"] for chunk in batch])
+                target.upload_documents(
+                    documents=[{**chunk, "text_vector": vector} for chunk, vector in zip(batch, vectors)]
+                )
+            copied += len(chunks)
+    finally:
+        target.close()
+    return copied
+
+
 def ingest_corpora(
     service: FoundryIqService,
     blob_service: BlobServiceClient,
@@ -472,6 +530,7 @@ def ingest_corpora(
         )
         for corpus in CORPORA
     }
+    results["combined"] = {"indexedItems": build_combined_index(service)}
     service.create_knowledge_base()
     return results
 
@@ -520,6 +579,7 @@ def main() -> None:
                 f"{len(corpus_result['skipped'])} unchanged, "
                 f"{corpus_result['indexedItems']} documents processed."
             )
+        print(f"combined: {result['combined']['indexedItems']} chunks copied into {COMBINED_INDEX}.")
     finally:
         blob_service.close()
         service.index_client.close()

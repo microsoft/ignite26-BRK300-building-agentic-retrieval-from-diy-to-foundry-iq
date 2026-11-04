@@ -41,10 +41,9 @@ When previewing generated decks, don't script PowerPoint against its active pres
 
 Track deck TODOs here, not in speaker notes.
 
-- **Switch the Foundry IQ demo to Microsoft Retriever 1 (MR1).** The "Foundry IQ knowledge base" demo slide shows a real MR1 response from an MR1-enabled preview search service (minimal effort, MR1, the same six sources), rendered in the portal with source names shortened. Our subscription's `cocoarynth-kb-all` still uses low reasoning effort with an LLM planner, which picks 3 of the 6 sources. Once MR1 is enabled on our subscription, switch `cocoarynth-kb-all` to MR1 and re-capture the demo live.
-- **Replace the faded minimap.** "Now let's delete most of it" fades the DIY blocks out of `python/diy-complexity-classifier/main.py`. Once a Foundry IQ agent step exists, show its real `main.py` and update the line counts.
+- **Switch the Foundry IQ demo to Microsoft Retriever 1 (MR1).** The "Foundry IQ knowledge base" demo slide and comparison 1 show real MR1 responses from an MR1-enabled preview search service (minimal effort, MR1, reranker threshold 2.0, one index of all Cocoarynth records), rendered in the portal with source names shortened. Comparison 2 uses auto effort on the six sources there. Our subscription's `cocoarynth-kb-all` still uses low reasoning effort with an LLM planner. Once MR1 is enabled on our subscription, switch `cocoarynth-kb-all` to MR1 and re-capture the demo live. Send the question as a search intent: with chat messages, auto skipped MR1 and went straight to the LLM planner.
+- **Keep the reranker threshold at 2.0 for MR1 demos.** At 1.5 or lower, the first search returns plenty of loosely related chunks and MR1 finishes without searching again, missing the estate's harvest report. At 2.25 or higher, too little evidence survives. The Foundry IQ team has the failing cases.
 - **Confirm what's public about MR1 before Ignite:** its name, the two-follow-up limit, and pricing ($0.10 per million input tokens, output free). The MR1 slide and the cost slide use all three.
-- **Confirm how auto uses MR1.** The auto slide shows seed search, then MR1 turns, then the LLM query planner. In our preview runs on six sources, auto escalated straight to the LLM planner without an MR1 turn. Confirm the flow with the Foundry IQ team, and whether sending semantic intents instead of chat messages changes it.
 
 ## Development Tips
 
@@ -89,7 +88,9 @@ curl --fail-with-body http://127.0.0.1:8000/api/knowledge-base
 
 Each DIY step is a Microsoft Agent Framework hosted agent in its own folder under `python/`, registered as a `host: azure.ai.agent` service in `azure.yaml`:
 
-`diy-baseline` -> `diy-query-decomposition` -> `diy-multi-source-fanout` -> `diy-source-selection` -> `diy-llm-reranking` -> `diy-reflection` -> `diy-complexity-classifier`
+`diy-baseline` -> `diy-query-decomposition` -> `diy-reflection` -> `diy-multi-source-fanout` -> `diy-source-selection` -> `diy-llm-reranking` -> `diy-complexity-classifier`
+
+Steps 1–3 search one index, `cocoarynth-all-index`, which holds every Cocoarynth company record. `scripts/preingest.py` builds it by copying the chunks of the four Cocoarynth indexes. Steps 4–7 search the six separate indexes.
 
 Each `main.py` is self-contained and cumulative: it repeats all the code from the previous step and adds one capability, so consecutive steps can be diffed on stage. Shared code (credentials, `ActivityLog`, `ask_llm`, `hybrid_search`, `combine_results`, agent instructions, `pyproject.toml`, `.agentignore`) is intentionally duplicated; `ActivityLog` starts in step 2, since the baseline records its single step inline. When you change shared code, apply the same change to every later step that contains it, then run `uv lock` in each folder whose `pyproject.toml` changed.
 
@@ -112,33 +113,35 @@ azd ai agent invoke diy-baseline --local --new-conversation "Which origin won Co
 # returns only hold records, so it misses the September 2026 tasting panel's notes on the bar.
 azd ai agent invoke diy-query-decomposition --local --new-conversation "What did the tasting panel think of the Madagascar bar, and why was its bean lot held on arrival?"
 
+# diy-reflection: round 1 finds the hold notice for lot MG26-L02 from Tsaravola Estate, and follow-up rounds use
+# those names to find the estate's harvest report (M5). diy-query-decomposition says the estate cause is missing.
+azd ai agent invoke diy-reflection --local --new-conversation "What happened at the estate that delayed the launch of the Madagascar limited-edition bar with cacao nibs?"
+
 # diy-multi-source-fanout, diy-source-selection, diy-llm-reranking: evidence spread across indexes (M1).
 azd ai agent invoke diy-multi-source-fanout --local --new-conversation "Why did the Ghana bars sold at Larkspur Market turn grey and dusty-looking in July 2026, and was the batch itself bad?"
 azd ai agent invoke diy-source-selection --local --new-conversation "Why did the Ghana bars sold at Larkspur Market turn grey and dusty-looking in July 2026, and was the batch itself bad?"
 azd ai agent invoke diy-llm-reranking --local --new-conversation "Why did the Ghana bars sold at Larkspur Market turn grey and dusty-looking in July 2026, and was the batch itself bad?"
 
-# diy-reflection: round 1 finds the held lot MG26-L02, and round 2 uses that lot code to find what happened
-# at the estate (M5). diy-llm-reranking answers the same question but says the estate cause is missing.
-azd ai agent invoke diy-reflection --local --new-conversation "Why did the Madagascar limited-edition bar with cacao nibs launch on 1 October instead of 1 September, and what happened at the estate to start the delay?"
-
 # diy-complexity-classifier: a simple question takes the direct route, M5 takes the agentic route.
 azd ai agent invoke diy-complexity-classifier --local --new-conversation "What is the recommended storage temperature for chocolate bars?"
-azd ai agent invoke diy-complexity-classifier --local --new-conversation "Why did the Madagascar limited-edition bar with cacao nibs launch on 1 October instead of 1 September, and what happened at the estate to start the delay?"
+azd ai agent invoke diy-complexity-classifier --local --new-conversation "What happened at the estate that delayed the launch of the Madagascar limited-edition bar with cacao nibs?"
 ```
 
 Each step logs its activity to the `azd ai agent run` terminal as `INFO:<step-name>:{...}` lines, mixed in with telemetry output.
 
 #### Ask the agents from the portal
 
-The portal's **DIY agentic retrieval** page (`/diy-agents`) asks any step a question and shows its answer, a latency waterfall (each retrieval step plus the agent's own model calls before and after retrieval, placed by the start times the agents record), the activity log (each tool call, planned and parallel searches by index, reranking, reflection rounds, routing, with timings and token usage), and the evidence it returned. Start all seven agents with one command from the repository root, then start the portal as described above and open <http://127.0.0.1:8000/diy-agents>:
+The portal's **DIY agentic retrieval** page (`/diy-agents`) asks any step a question and shows its answer, a latency waterfall (each retrieval step plus the agent's own model calls before and after retrieval, placed by the start times the agents record), the activity log (each tool call, planned and parallel searches by index, reranking, reflection rounds, routing, with timings and token usage), and the evidence it returned. Start all eight agents (the seven DIY steps and the Foundry IQ agent) with one command from the repository root, then start the portal as described above and open <http://127.0.0.1:8000/diy-agents>:
 
 ```shell
 .venv/bin/python -m scripts.run_diy_agents
 ```
 
-Each step listens on its own port (8091–8097), so all seven can run at once. Pass step names to start only some of them, for example `.venv/bin/python -m scripts.run_diy_agents diy-baseline diy-reflection`. The script creates a missing step `.venv`, prints only each agent's activity log, startup, and error lines, and stops every agent on Ctrl+C. The step list, ports, and example questions live in `app/backend/diy_agents.py`; add new steps there too. Each step has a few examples with short labels such as "Succeeds: tasting panel winner" or "Fails: grey Ghana bars", which the page offers in a dropdown. The page only reaches agents running on the same machine as the portal, so it doesn't work in the deployed portal.
+Each step listens on its own port (8091–8098), so all eight can run at once. Pass step names to start only some of them, for example `.venv/bin/python -m scripts.run_diy_agents diy-baseline diy-reflection`. The script creates a missing step `.venv`, prints only each agent's activity log, startup, and error lines, and stops every agent on Ctrl+C. The step list, ports, and example questions live in `app/backend/diy_agents.py`; add new steps there too. Each step has a few examples with short labels such as "Succeeds: tasting panel winner" or "Fails: Madagascar estate delay", which the page offers in a dropdown. The page only reaches agents running on the same machine as the portal, so it doesn't work in the deployed portal.
 
-Steps 5–7 rerank with Microsoft-Decision-1 (the `decision-1` deployment, `FOUNDRY_DECISION_DEPLOYMENT_NAME`), and step 7 also routes with it. Each step keeps the chat-model version behind a constant at the top of `main.py`: set `RERANKER = "chat"` or `ROUTER = "chat"` to switch back. The thresholds next to those constants (`DECISION_MIN_RELEVANCE`, `AGENTIC_PROBABILITY_THRESHOLD`) were measured against the chat model's decisions; re-measure them if you change the prompts or data.
+The Foundry IQ agent (`python/foundry-iq`, port 8098) is the same agent, but `search_knowledge` makes one retrieve call to a Foundry IQ knowledge base and reports the knowledge base's activity log as its own steps. It uses `cocoarynth-kb-all` by default. To point it at another search service, such as one with Microsoft Retriever 1 enabled, set `FOUNDRY_IQ_KB_ENDPOINT`, `FOUNDRY_IQ_KB_API_KEY`, and `FOUNDRY_IQ_KNOWLEDGE_BASE` in the shell before starting it; keep the key in an ignored `.env.*` file.
+
+Steps 6–7 rerank with Microsoft-Decision-1 (the `decision-1` deployment, `FOUNDRY_DECISION_DEPLOYMENT_NAME`), and step 7 also routes with it. Each step keeps the chat-model version behind a constant at the top of `main.py`: set `RERANKER = "chat"` or `ROUTER = "chat"` to switch back. The thresholds next to those constants (`DECISION_MIN_RELEVANCE`, `AGENTIC_PROBABILITY_THRESHOLD`) were measured against the chat model's decisions; re-measure them if you change the prompts or data.
 
 Lint all steps with `uvx ruff check python`.
 

@@ -21,7 +21,7 @@ logger = logging.getLogger("diy-query-decomposition")
 PROJECT_ENDPOINT = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
 MODEL_DEPLOYMENT_NAME = os.environ["FOUNDRY_MODEL_DEPLOYMENT_NAME"]
 SEARCH_ENDPOINT = os.environ["FOUNDRY_IQ_SEARCH_ENDPOINT"]
-INDEX_NAME = "cocoarynth-quality-index"
+INDEX_NAME = "cocoarynth-all-index"
 
 credential = (
     ManagedIdentityCredential()
@@ -109,7 +109,7 @@ class QueryPlan(BaseModel):
     queries: list[str] = Field(description="One to five focused search queries, each covering one information need.")
 
 
-PLANNER_INSTRUCTIONS = """You plan searches over Cocoarynth's quality records.
+PLANNER_INSTRUCTIONS = """You plan searches over Cocoarynth's company records.
 Split the user's question into the separate searches needed to answer every part of it.
 Use a single query when the question has only one information need."""
 
@@ -118,7 +118,7 @@ Use a single query when the question has only one information need."""
 async def search_knowledge(
     question: Annotated[str, Field(description="The user's full question, unchanged.")],
 ) -> dict[str, Any]:
-    """Plan and run the searches needed to answer a question from Cocoarynth's quality records."""
+    """Plan and run the searches needed to answer a question from Cocoarynth's company records."""
     activity = ActivityLog()
 
     started = time.perf_counter()
@@ -146,7 +146,8 @@ async def main() -> None:
     agent = Agent(
         client=chat_client,
         name="diy-query-decomposition",
-        instructions="""You answer questions about Cocoarynth Chocolate Works, a bean-to-bar chocolate maker.
+        instructions="""You answer questions about Cocoarynth Chocolate Works, a bean-to-bar
+        chocolate maker, from its company records.
         Always call search_knowledge with the user's full question before answering,
         and answer only from the evidence it returns.
         Cite the title of each document you use in square brackets.
