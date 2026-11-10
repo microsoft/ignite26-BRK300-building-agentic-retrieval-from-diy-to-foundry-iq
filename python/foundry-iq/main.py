@@ -1,4 +1,7 @@
-"""Agentic retrieval with Foundry IQ: the same agent as the DIY steps, but search_knowledge is one knowledge base call."""
+"""Agentic retrieval with Foundry IQ: the same agent as the DIY steps, but search_knowledge is one knowledge base call.
+
+This agent's knowledge base uses minimal reasoning effort with Microsoft Retriever 1 as its only model.
+"""
 
 import asyncio
 import json
@@ -20,12 +23,13 @@ logger = logging.getLogger("foundry-iq")
 
 PROJECT_ENDPOINT = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
 MODEL_DEPLOYMENT_NAME = os.environ["FOUNDRY_MODEL_DEPLOYMENT_NAME"]
-# FOUNDRY_IQ_KB_* settings point the agent at a different search service, such as one with
-# Microsoft Retriever 1 enabled; by default it uses the workshop's own knowledge base.
+# Microsoft Retriever 1 (MR1) is only enabled on a preview search service for now. scripts.run_diy_agents
+# sets the FOUNDRY_IQ_KB_* settings from .env.mr1; without them the agent uses the project's own service.
 SEARCH_ENDPOINT = os.environ.get("FOUNDRY_IQ_KB_ENDPOINT") or os.environ["FOUNDRY_IQ_SEARCH_ENDPOINT"]
 SEARCH_API_KEY = os.environ.get("FOUNDRY_IQ_KB_API_KEY")
-KNOWLEDGE_BASE = os.environ.get("FOUNDRY_IQ_KNOWLEDGE_BASE", "cocoarynth-kb-all")
-API_VERSION = "2026-11-01-preview"
+# Minimal effort, models: [Microsoft Retriever 1], one index of every Cocoarynth record.
+KNOWLEDGE_BASE = os.environ.get("FOUNDRY_IQ_KNOWLEDGE_BASE", "lab673-brk300-kb-all-minimal-mr1")
+API_VERSION = os.environ.get("FOUNDRY_IQ_KB_API_VERSION", "2026-11-01-preview")
 # Keep only chunks the semantic ranker scores as relevant (0-4 scale), so the retrieval model
 # can tell when evidence is missing and search again.
 RERANKER_THRESHOLD = 2.0

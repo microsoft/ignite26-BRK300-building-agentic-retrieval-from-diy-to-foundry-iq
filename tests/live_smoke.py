@@ -22,7 +22,7 @@ Judge = Callable[[str, str, str, str], str]
 def live_portal_url(pytestconfig: pytest.Config) -> str:
     base_url = pytestconfig.getoption("--smoke-base-url")
     if not base_url:
-        pytest.skip("Run with --smoke-base-url pointing to the deployed workshop portal.")
+        pytest.skip("Run with --smoke-base-url pointing to the deployed portal.")
     url = f"{base_url.rstrip('/')}/"
     response = requests.get(f"{url}health", timeout=30)
     response.raise_for_status()

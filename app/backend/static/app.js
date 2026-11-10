@@ -47,7 +47,9 @@ const panelPaths = {
   "kb-configuration": "/knowledge-base/configuration",
   "kb-query": "/knowledge-base/query",
   "diy-agents": "/diy-agents",
+  demos: "/demos",
 };
+const defaultTitle = document.title;
 const exampleSearches = {
   origins: "fermentation log for the Madagascar lot",
   quality: "bean moisture test results on arrival",
@@ -60,6 +62,7 @@ const sourceState = { sources: [], key: null, documents: new Map(), loadId: 0 };
 
 function panelPath(target) {
   if (sourcePages.includes(target) && sourceState.key) return `/sources/${sourceState.key}/${target}`;
+  if (target === "diy-agents") return diyPath();
   return panelPaths[target] || "/";
 }
 
@@ -70,6 +73,7 @@ function activatePanel(target, updateHistory = false) {
   $$(".nav-item, .panel").forEach((item) => item.classList.remove("active"));
   if (button) button.classList.add("active");
   panel.classList.add("active");
+  document.title = target === "diy-agents" && diyState.selected ? diyTitle() : defaultTitle;
   if (updateHistory) window.history.pushState({ target }, "", panelPath(target));
 }
 
@@ -757,56 +761,101 @@ function renderDiyResult(container, result) {
   container.replaceChildren(metrics, answer, activitySection, evidenceSection);
 }
 
-const diyState = { steps: [], selected: null };
+const diyState = { steps: [], selected: null, autorun: false };
+
+// The DIY page URL carries ?agent=...&question=... so each demo can live in its own browser tab.
+// Demo links add &run=1 to ask the question as soon as the tab loads.
+function diyPath() {
+  const params = new URLSearchParams();
+  if (diyState.selected) params.set("agent", diyState.selected);
+  const question = $("#diy-question").value.trim();
+  if (question) params.set("question", question);
+  const query = params.toString();
+  return query ? `${panelPaths["diy-agents"]}?${query}` : panelPaths["diy-agents"];
+}
+
+function demoPath(step, example) {
+  return `${panelPaths["diy-agents"]}?${new URLSearchParams({ agent: step.name, question: example.question, run: "1" })}`;
+}
+
+function diyTitle() {
+  const index = diyState.steps.findIndex((step) => step.name === diyState.selected);
+  if (index < 0) return defaultTitle;
+  const step = diyState.steps[index];
+  const example = step.examples.find((item) => item.question === $("#diy-question").value.trim());
+  return [`${index + 1}`, step.title, example?.label].filter(Boolean).join(" · ");
+}
+
+function syncDiyUrl() {
+  if (activePanelId() !== "diy-agents") return;
+  document.title = diyTitle();
+  const path = diyPath();
+  if (`${window.location.pathname}${window.location.search}` !== path) {
+    window.history.replaceState({ target: "diy-agents" }, "", path);
+  }
+}
+
+function requestedDiyStep() {
+  if (window.location.pathname !== panelPaths["diy-agents"]) return null;
+  const params = new URLSearchParams(window.location.search);
+  const question = params.get("question");
+  if (question) $("#diy-question").value = question;
+  diyState.autorun = params.get("run") === "1";
+  return params.get("agent");
+}
 
 function selectDiyStep(name) {
-  const previous = diyState.steps.find((step) => step.name === diyState.selected);
   const step = diyState.steps.find((item) => item.name === name);
   if (!step) return;
   diyState.selected = name;
-  $$(".diy-step").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.step === name)));
+  $("#diy-agent").value = name;
   $("#diy-capability").textContent = step.capability;
   $("#diy-hint").hidden = step.running;
-
-  const select = $("#diy-example");
-  select.replaceChildren(...step.examples.map((example, index) => new Option(example.label, String(index))));
   const question = $("#diy-question");
-  const previousQuestions = (previous?.examples || []).map((example) => example.question);
-  if (!question.value.trim() || previousQuestions.includes(question.value)) {
-    question.value = step.examples[0]?.question || "";
+  if (!question.value.trim()) question.value = step.examples[0]?.question || "";
+  syncDiyUrl();
+}
+
+function renderDemoList(demos) {
+  const list = element("ol", "demo-items");
+  for (const demo of demos) {
+    const step = diyState.steps.find((item) => item.name === demo.step);
+    const link = element("a");
+    link.href = demoPath(step, demo);
+    link.target = "_blank";
+    link.append(element("strong", "", demo.slide), element("em", "", `${step.title} · ${demo.label}`), element("span", "", demo.question));
+    const item = element("li");
+    item.append(link);
+    list.append(item);
   }
-  const match = step.examples.findIndex((example) => example.question === question.value);
-  if (match >= 0) select.value = String(match);
+  $("#demo-list").replaceChildren(list);
 }
 
 async function loadDiySteps() {
-  const container = $("#diy-steps");
+  const select = $("#diy-agent");
   try {
     const result = await api("/api/diy/agents");
     diyState.steps = result.steps;
-    container.replaceChildren(...result.steps.map((step, index) => {
-      const button = element("button", "diy-step");
-      button.type = "button";
-      button.dataset.step = step.name;
-      button.setAttribute("aria-pressed", "false");
-      button.append(element("span", "diy-step-number", `Step ${index + 1}`), element("strong", "", step.title));
-      const status = element("span", step.running ? "diy-status running" : "diy-status", step.running ? "Running" : "Not running");
-      button.append(status);
-      button.addEventListener("click", () => selectDiyStep(step.name));
-      return button;
+    select.replaceChildren(...result.steps.map((step, index) => {
+      const label = `${index + 1} · ${step.title}${step.running ? "" : " (not running)"}`;
+      return new Option(label, step.name);
     }));
-    selectDiyStep(diyState.selected || result.steps[0]?.name);
+    renderDemoList(result.demos || []);
+    const requested = diyState.selected ? null : requestedDiyStep();
+    const initial = result.steps.find((step) => step.name === requested)?.name || result.steps[0]?.name;
+    selectDiyStep(diyState.selected || initial);
+    if (diyState.autorun && activePanelId() === "diy-agents") {
+      diyState.autorun = false;
+      $("#diy-form").requestSubmit();
+    }
   } catch (error) {
-    container.replaceChildren(element("div", "empty-state error", error.message));
+    $("#diy-output").replaceChildren(element("div", "empty-state error", error.message));
   }
 }
 
 $("#diy-refresh").addEventListener("click", loadDiySteps);
-$("#diy-example").addEventListener("change", (event) => {
-  const step = diyState.steps.find((item) => item.name === diyState.selected);
-  const example = step?.examples[Number(event.target.value)];
-  if (example) $("#diy-question").value = example.question;
-});
+$("#diy-agent").addEventListener("change", (event) => selectDiyStep(event.target.value));
+$("#diy-question").addEventListener("input", syncDiyUrl);
 $(".nav-item[data-target='diy-agents']").addEventListener("click", loadDiySteps);
 
 $("#diy-form").addEventListener("submit", async (event) => {

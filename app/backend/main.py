@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import Settings, is_running_in_production
-from .diy_agents import DIY_STEPS_BY_NAME, DiyAgentUnavailableError
+from .diy_agents import DEMOS, DIY_STEPS_BY_NAME, DiyAgentUnavailableError
 from .diy_agents import ask as ask_diy_agent
 from .diy_agents import list_steps as list_diy_steps
 from .foundry_iq import FoundryIqService
@@ -52,7 +53,7 @@ async def lifespan(app: FastAPI):
     credential.close()
 
 
-app = FastAPI(title="Foundry IQ workshop", lifespan=lifespan)
+app = FastAPI(title="Agentic retrieval explorer", lifespan=lifespan)
 app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
 
@@ -96,6 +97,7 @@ async def diy_agent_error(_: Request, error: httpx2.HTTPError) -> JSONResponse:
 @app.get("/knowledge-base/configuration", include_in_schema=False)
 @app.get("/knowledge-base/query", include_in_schema=False)
 @app.get("/diy-agents", include_in_schema=False)
+@app.get("/demos", include_in_schema=False)
 async def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
@@ -187,7 +189,7 @@ async def retrieve(payload: RetrievalRequest, request: Request) -> dict[str, Any
 @app.get("/api/diy/agents")
 async def diy_agents(response: Response) -> dict[str, Any]:
     response.headers["Cache-Control"] = "no-store"
-    return {"steps": await list_diy_steps()}
+    return {"steps": await list_diy_steps(), "demos": [asdict(demo) for demo in DEMOS]}
 
 
 @app.post("/api/diy/ask")

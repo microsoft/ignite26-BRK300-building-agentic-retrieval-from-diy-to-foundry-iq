@@ -11,9 +11,13 @@ import sys
 import threading
 from pathlib import Path
 
+from dotenv import dotenv_values
+
 from app.backend.diy_agents import DIY_STEPS, DIY_STEPS_BY_NAME, DiyStep
 
 AGENTS_DIR = Path(__file__).parents[1] / "python"
+# Microsoft Retriever 1 is only enabled on a preview search service, whose connection lives in this ignored file.
+MR1_ENV_FILE = Path(__file__).parents[1] / ".env.mr1"
 # The agent server logs every telemetry span to the console; only show its activity log, startup, and errors.
 RELEVANT_LINE = re.compile(r"^(INFO:(?:diy-|foundry-iq)|ERROR|WARNING:agent_framework|Traceback|\S*Error: |INFO:hypercorn\.error:Running on)")
 
@@ -26,11 +30,25 @@ def ensure_venv(step_dir: Path) -> Path:
     return venv
 
 
+def foundry_iq_env() -> dict[str, str]:
+    """Point the Foundry IQ agents at the MR1 preview service, unless the shell already sets FOUNDRY_IQ_KB_*."""
+    if not MR1_ENV_FILE.exists():
+        print(f"{MR1_ENV_FILE.name} not found; the Foundry IQ agents will use the project's search service.", flush=True)
+        return {}
+    preview = dotenv_values(MR1_ENV_FILE)
+    return {
+        "FOUNDRY_IQ_KB_ENDPOINT": preview["AZURE_SEARCH_PREVIEW_ENDPOINT"] or "",
+        "FOUNDRY_IQ_KB_API_KEY": preview["AZURE_SEARCH_PREVIEW_ADMIN_KEY"] or "",
+    }
+
+
 def start(step: DiyStep) -> subprocess.Popen[str]:
     step_dir = AGENTS_DIR / step.name
     venv = ensure_venv(step_dir)
     bin_dir = venv / ("Scripts" if os.name == "nt" else "bin")
     env = {**os.environ, "VIRTUAL_ENV": str(venv), "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+    if step.name.startswith("foundry-iq") and "FOUNDRY_IQ_KB_ENDPOINT" not in os.environ:
+        env.update(foundry_iq_env())
     return subprocess.Popen(
         ["azd", "ai", "agent", "run", step.name, "--no-client", "--port", str(step.port)],
         cwd=step_dir,

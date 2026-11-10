@@ -37,10 +37,7 @@ PRICIEST_BEANS = (
     "judging by taste and sales?"
 )
 MADAGASCAR_ESTATE = "What happened at the estate that delayed the launch of the Madagascar limited-edition bar with cacao nibs?"
-MULTI_SOURCE_EXAMPLES = (
-    Example("Multi-source: grey Ghana bars", GHANA_BARS),
-    Example("Multi-source: priciest beans", PRICIEST_BEANS),
-)
+STORAGE_TEMPERATURE = "What is the recommended storage temperature for chocolate bars?"
 
 DIY_STEPS = (
     DiyStep(
@@ -65,31 +62,28 @@ DIY_STEPS = (
         "Reflection",
         "An LLM checks the evidence and plans follow-up searches until it is sufficient.",
         8093,
-        (
-            Example("Succeeds: Madagascar estate delay", MADAGASCAR_ESTATE),
-            Example("One round: Madagascar panel and hold", MADAGASCAR_PANEL),
-        ),
+        (Example("Succeeds: Madagascar estate delay", MADAGASCAR_ESTATE),),
     ),
     DiyStep(
         "diy-multi-source-fanout",
         "Multi-source fan-out",
         "Every query, including follow-ups, runs against every index.",
         8094,
-        MULTI_SOURCE_EXAMPLES,
+        (Example("Multi-source: grey Ghana bars", GHANA_BARS),),
     ),
     DiyStep(
         "diy-source-selection",
         "Source selection",
         "The planner sends each query only to the indexes likely to answer it.",
         8095,
-        MULTI_SOURCE_EXAMPLES,
+        (Example("Multi-source: priciest beans", PRICIEST_BEANS),),
     ),
     DiyStep(
         "diy-llm-reranking",
         "LLM reranking",
         "A ranking model (Microsoft-Decision-1) scores the merged results and keeps the most relevant evidence.",
         8096,
-        MULTI_SOURCE_EXAMPLES,
+        (Example("Multi-source: grey Ghana bars", GHANA_BARS),),
     ),
     DiyStep(
         "diy-complexity-classifier",
@@ -97,23 +91,56 @@ DIY_STEPS = (
         "A classifier (Microsoft-Decision-1) routes simple questions to one direct search and complex ones to the agentic path.",
         8097,
         (
-            Example("Simple: storage temperature", "What is the recommended storage temperature for chocolate bars?"),
+            Example("Simple: storage temperature", STORAGE_TEMPERATURE),
             Example("Complex: Madagascar estate delay", MADAGASCAR_ESTATE),
         ),
     ),
     DiyStep(
         "foundry-iq",
-        "Foundry IQ",
-        "One call to a Foundry IQ knowledge base, which plans, searches, ranks, and decides when to stop.",
+        "Foundry IQ: minimal + MR1",
+        "One call to a Foundry IQ knowledge base with minimal effort: Microsoft Retriever 1 reviews each search and decides whether to search again.",
         8098,
-        (
-            Example("Trail: Madagascar estate delay", MADAGASCAR_ESTATE),
-            Example("Two parts: Madagascar panel and hold", MADAGASCAR_PANEL),
-            Example("Simple: storage temperature", "What is the recommended storage temperature for chocolate bars?"),
-        ),
+        (Example("Trail: Madagascar estate delay", MADAGASCAR_ESTATE),),
+    ),
+    DiyStep(
+        "foundry-iq-auto",
+        "Foundry IQ: auto",
+        "One call to a Foundry IQ knowledge base with auto effort, which decides how much retrieval each question needs.",
+        8099,
+        (Example("Auto: storage temperature", STORAGE_TEMPERATURE),),
     ),
 )
 DIY_STEPS_BY_NAME = {step.name: step for step in DIY_STEPS}
+
+
+@dataclass(frozen=True)
+class Demo:
+    slide: str
+    step: str
+    label: str
+    question: str
+
+
+def _demo(slide: str, step: str, question: str) -> Demo:
+    example = next(example for example in DIY_STEPS_BY_NAME[step].examples if example.question == question)
+    return Demo(slide, step, example.label, question)
+
+
+# The talk's demos, in slide order. The slide titles match the deck's demo slides.
+DEMOS = (
+    _demo("Baseline strategy", "diy-baseline", TASTING_PANEL.question),
+    _demo("Baseline strategy: multi-part question", "diy-baseline", MADAGASCAR_PANEL),
+    _demo("Query decomposition strategy", "diy-query-decomposition", MADAGASCAR_PANEL),
+    _demo("Query decomposition strategy: follow-up question", "diy-query-decomposition", MADAGASCAR_ESTATE),
+    _demo("Reflection strategy", "diy-reflection", MADAGASCAR_ESTATE),
+    _demo("Foundry IQ knowledge base", "foundry-iq", MADAGASCAR_ESTATE),
+    _demo("Multi-source fan-out strategy", "diy-multi-source-fanout", GHANA_BARS),
+    _demo("Source selection strategy", "diy-source-selection", PRICIEST_BEANS),
+    _demo("LLM reranking strategy", "diy-llm-reranking", GHANA_BARS),
+    _demo("Complexity classifier strategy", "diy-complexity-classifier", STORAGE_TEMPERATURE),
+    _demo("Complexity classifier strategy", "diy-complexity-classifier", MADAGASCAR_ESTATE),
+    _demo("Foundry IQ Auto: simple question", "foundry-iq-auto", STORAGE_TEMPERATURE),
+)
 AGENT_TIMEOUT_SECONDS = 240
 
 

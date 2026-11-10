@@ -3,23 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Foundry IQ workshop portal</title>
+    <title>Agentic retrieval explorer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=17" />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/styles.css?v=21" />
   </head>
   <body>
     <header>
-      <a class="brand-home" href="/" aria-label="Workshop portal home">
-        <img class="brand-mark" src="/assets/cocoarynth-mark.png?v=3" alt="Cocoarynth" />
-        <div class="brand-copy"><span class="kicker">Cocoarynth Trace</span><h1>Workshop portal</h1></div>
+      <a class="brand-home" href="/" aria-label="Cocoarynth home">
+        <img class="brand-logo" src="/assets/cocoarynth-emblem.png?v=1" alt="" />
+        <span class="brand-name">Cocoarynth</span>
       </a>
-      <div class="service-state"><span></span> Foundry IQ connected</div>
     </header>
 
     <main>
-      <aside>
+      <aside hidden>
         <nav aria-label="Knowledge explorer pages">
           <div class="nav-group">
             <span class="nav-label">Knowledge sources</span>
@@ -41,12 +40,17 @@
 
       <section class="workspace">
         <div id="home" class="panel active welcome-panel">
-          <div class="panel-heading"><h2>Welcome</h2><p>Choose an area from the navigation to explore the workshop resources.</p></div>
+          <div class="panel-heading"><h2>Welcome</h2><p>Choose an area to explore the Cocoarynth knowledge and retrieval agents.</p></div>
           <div class="welcome-options">
-            <section><h3>Knowledge sources</h3><p>Browse the documents in each of the six Cocoarynth knowledge sources, inspect their chunks, or search an index directly.</p></section>
-            <section><h3>Knowledge base</h3><p>Inspect the Foundry IQ knowledge base configuration, or query all six knowledge sources at once and see the activity log.</p></section>
-            <section><h3>DIY agentic retrieval</h3><p>Ask the seven Agent Framework agents that build agentic retrieval step by step, and see each one's activity log.</p></section>
+            <section><h3><a href="/sources/origins/documents">Knowledge sources</a></h3><p>Browse the documents in each of the six Cocoarynth knowledge sources, inspect their chunks, or search an index directly.</p></section>
+            <section><h3><a href="/knowledge-base/configuration">Knowledge base</a></h3><p>Inspect the Foundry IQ knowledge base configuration, or query all six knowledge sources at once and see the activity log.</p></section>
+            <section><h3><a href="/diy-agents">DIY agentic retrieval</a></h3><p>Ask the seven Agent Framework agents that build agentic retrieval step by step, and see each one's activity log.</p></section>
+            <section><h3><a href="/demos">Demos</a></h3><p>Open each talk demo in its own tab, with the agent and question loaded and running.</p></section>
           </div>
+        </div>
+        <div id="demos" class="panel">
+          <div class="panel-heading"><h2>Demos</h2><p>The demos in slide order. Each link opens a new tab that asks the agent its question right away. To open every demo at once, run <code>python -m scripts.open_demo_tabs</code>.</p></div>
+          <div id="demo-list" class="demo-list"><div class="empty-state">Loading demos...</div></div>
         </div>
 
         <div id="documents" class="panel">
@@ -84,18 +88,17 @@
         </div>
 
         <div id="diy-agents" class="panel">
-          <div class="panel-heading"><h2>DIY agentic retrieval</h2><p>Ask one of the seven Agent Framework agents and see every retrieval step it took.</p></div>
-          <div id="diy-steps" class="diy-steps" aria-label="DIY step"><div class="empty-state">Loading DIY agents...</div></div>
-          <div id="diy-hint" class="diy-hint" hidden>
-            <p>This agent isn't running. Start all seven DIY agents from the repository root:</p>
-            <code>python -m scripts.run_diy_agents</code>
-            <button id="diy-refresh" type="button">Check again</button>
-          </div>
-          <p id="diy-capability" class="diy-capability"></p>
           <form id="diy-form" class="diy-form">
-            <label for="diy-example">Example question</label>
-            <select id="diy-example"></select>
-            <textarea id="diy-question" aria-label="Question for the DIY agent" rows="3"></textarea>
+            <label for="diy-agent">Agent</label>
+            <select id="diy-agent"><option>Loading agents...</option></select>
+            <p id="diy-capability" class="diy-capability"></p>
+            <div id="diy-hint" class="diy-hint" hidden>
+              <p>This agent isn't running. Start the agents from the repository root:</p>
+              <code>python -m scripts.run_diy_agents</code>
+              <button id="diy-refresh" type="button">Check again</button>
+            </div>
+            <label for="diy-question">Question</label>
+            <textarea id="diy-question" rows="3"></textarea>
             <div class="diy-actions">
               <button class="primary" type="submit">Ask agent</button>
             </div>
@@ -105,6 +108,6 @@
       </section>
     </main>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/assets/app.js?v=35"></script>
+    <script src="/assets/app.js?v=38"></script>
   </body>
 </html>

@@ -225,7 +225,21 @@ DIY_AGENTS = {
             ],
             "running": True,
         },
-    ]
+    ],
+    "demos": [
+        {
+            "slide": "Reflection strategy",
+            "step": "diy-reflection",
+            "label": "Needs reflection: Pantry Lane farms",
+            "question": "A Pantry Lane customer asked which farms grew the cacao.",
+        },
+        {
+            "slide": "Baseline strategy",
+            "step": "diy-baseline",
+            "label": "Succeeds: tasting panel winner",
+            "question": "Which origin won the tasting panel?",
+        },
+    ],
 }
 
 DIY_ANSWER = {
@@ -414,15 +428,15 @@ def test_home_is_responsive(
     page.set_viewport_size({"width": viewport[0], "height": viewport[1]})
     page.goto(live_server_url)
 
-    expect(page).to_have_title("Foundry IQ workshop portal")
-    expect(page.get_by_role("heading", name="Workshop portal")).to_be_visible()
+    expect(page).to_have_title("Agentic retrieval explorer")
     expect(page.get_by_role("heading", name="Welcome")).to_be_visible()
     expect(page.locator("#home")).to_have_class(re.compile(r"\bactive\b"))
-    expect(page.locator(".nav-item.active")).to_have_count(0)
-    expect(page.get_by_role("img", name="Cocoarynth")).to_be_visible()
-    expect(page.get_by_role("img", name="Cocoarynth")).to_have_attribute(
-        "src", re.compile(r"/assets/cocoarynth-mark\.png")
-    )
+    brand = page.get_by_role("link", name="Cocoarynth home")
+    expect(brand).to_contain_text("Cocoarynth")
+    expect(brand.locator("img")).to_be_visible()
+    expect(brand.locator("img")).to_have_attribute("src", re.compile(r"/assets/cocoarynth-emblem\.png"))
+    expect(page.locator("aside")).to_be_hidden()
+    expect(page.get_by_text("Foundry IQ connected")).to_have_count(0)
     expect(page.locator("#prefix")).to_have_count(0)
     expect(page.locator("#create-combined")).to_have_count(0)
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
@@ -432,24 +446,26 @@ def test_header_brand_links_to_home(page: Page, live_server_url: str, live_smoke
     mock_app_apis(page, live_smoke)
     page.goto(f"{live_server_url}knowledge-base/query")
 
-    page.get_by_role("link", name="Workshop portal home").click()
+    page.get_by_role("link", name="Cocoarynth home").click()
 
     expect(page).to_have_url(re.compile(r"/$"))
     expect(page.locator("#home")).to_have_class(re.compile(r"\bactive\b"))
 
 
-def test_navigation_has_sources_knowledge_base_and_diy_groups(
+def test_home_links_to_sources_knowledge_base_and_diy_pages(
     page: Page, live_server_url: str, live_smoke: bool
 ) -> None:
     mock_app_apis(page, live_smoke)
     page.goto(live_server_url)
 
-    expect(page.locator(".nav-label")).to_have_text(["Knowledge sources", "Knowledge base", "DIY agentic retrieval"])
-    expect(page.locator(".nav-group").nth(0).locator(".nav-item")).to_have_text(
-        ["Browse documents", "View document chunks", "Search the index"]
-    )
-    expect(page.locator(".nav-group-kb .nav-item")).to_have_text(["Configuration", "Query knowledge base"])
-    expect(page.locator(".nav-group-kb")).to_have_css("border-top-style", "solid")
+    links = page.locator(".welcome-options h3 a")
+    expect(links).to_have_text(["Knowledge sources", "Knowledge base", "DIY agentic retrieval", "Demos"])
+    links.filter(has_text="Knowledge base").click()
+    expect(page.locator("#kb-configuration")).to_have_class(re.compile(r"\bactive\b"))
+    page.go_back()
+    links.filter(has_text="DIY agentic retrieval").click()
+    expect(page.locator("#diy-agents")).to_have_class(re.compile(r"\bactive\b"))
+    page.go_back()
     expect(page.get_by_text("MCP")).to_have_count(0)
     expect(page.get_by_text("Azure AI Search")).to_have_count(0)
 
@@ -474,7 +490,7 @@ def test_loads_source_inventory(page: Page, live_server_url: str, live_smoke: bo
 def test_defaults_to_first_source(page: Page, live_server_url: str, live_smoke: bool) -> None:
     mock_app_apis(page, live_smoke)
     page.goto(live_server_url)
-    page.locator(".nav-group").nth(0).get_by_role("button", name="Browse documents", exact=True).click()
+    page.locator(".welcome-options").get_by_role("link", name="Knowledge sources").click()
 
     expect(page).to_have_url(re.compile(r"/sources/origins/documents$"))
     expect(page.locator("#documents-source")).to_have_value("origins")
@@ -491,10 +507,11 @@ def test_page_permalinks_and_browser_history(page: Page, live_server_url: str, l
         "knowledge-base/configuration": "kb-configuration",
         "knowledge-base/query": "kb-query",
         "diy-agents": "diy-agents",
+        "demos": "demos",
     }.items():
         page.goto(f"{live_server_url}{path}")
         expect(page.locator(f"#{panel_id}")).to_have_class(re.compile(r"\bactive\b"))
-        expect(page).to_have_url(re.compile(rf"/{path}$"))
+        expect(page).to_have_url(re.compile(rf"/{path}(\?agent=.*)?$"))
 
     for path in ("project-requirements", "combined/query", "sources/unknown/documents", "sources/quality/mcp"):
         assert requests.get(f"{live_server_url}{path}", timeout=10).status_code == 404
@@ -502,10 +519,13 @@ def test_page_permalinks_and_browser_history(page: Page, live_server_url: str, l
     page.goto(f"{live_server_url}sources/policies/search")
     expect(page.locator("#search-source")).to_have_value("policies")
 
-    page.locator(".nav-group-kb").get_by_role("button", name="Query knowledge base", exact=True).click()
+    page.get_by_role("link", name="Cocoarynth home").click()
+    expect(page.locator("#home")).to_have_class(re.compile(r"\bactive\b"))
+    page.goto(f"{live_server_url}knowledge-base/query")
     expect(page.locator("#kb-query")).to_have_class(re.compile(r"\bactive\b"))
     expect(page).to_have_url(re.compile(r"/knowledge-base/query$"))
 
+    page.go_back()
     page.go_back()
     expect(page.locator("#search")).to_have_class(re.compile(r"\bactive\b"))
     expect(page).to_have_url(re.compile(r"/sources/policies/search$"))
@@ -516,18 +536,17 @@ def test_selected_source_persists_across_source_pages(
 ) -> None:
     mock_app_apis(page, live_smoke)
     page.goto(f"{live_server_url}sources/origins/documents")
-    sources = page.locator(".nav-group").nth(0)
 
     page.locator("#documents-source").select_option(label="Origin Passport")
     expect(page).to_have_url(re.compile(r"/sources/documents/documents$"))
     if not live_smoke:
         expect(page.locator("#document-list")).to_contain_text("mapayca-markets-traceability-pilot-requirements.pdf")
 
-    sources.get_by_role("button", name="View document chunks", exact=True).click()
+    page.goto(f"{live_server_url}sources/documents/chunks")
     expect(page).to_have_url(re.compile(r"/sources/documents/chunks$"))
     expect(page.locator("#chunks-source")).to_have_value("documents")
 
-    sources.get_by_role("button", name="Search the index", exact=True).click()
+    page.goto(f"{live_server_url}sources/documents/search")
     expect(page).to_have_url(re.compile(r"/sources/documents/search$"))
     expect(page.locator("#search-source")).to_have_value("documents")
     expect(page.locator("#search-query")).to_have_value("CSV export requirements")
@@ -584,7 +603,7 @@ def test_runs_hybrid_source_search(page: Page, live_server_url: str, live_smoke:
 
 def test_query_knowledge_base_workflow(page: Page, live_server_url: str, live_smoke: bool) -> None:
     if live_smoke:
-        pytest.skip("Model-judged workshop acceptance is covered by tests/live_smoke.py.")
+        pytest.skip("Model-judged portal acceptance is covered by tests/live_smoke.py.")
     mock_app_apis(page, live_smoke)
     retrieval_payloads: list[dict] = []
 
@@ -593,8 +612,7 @@ def test_query_knowledge_base_workflow(page: Page, live_server_url: str, live_sm
         json_response(route, RETRIEVAL)
 
     page.route(re.compile(r".*/api/retrieve$"), handle_retrieval)
-    page.goto(live_server_url)
-    page.locator(".nav-group-kb").get_by_role("button", name="Query knowledge base", exact=True).click()
+    page.goto(f"{live_server_url}knowledge-base/query")
 
     question = page.locator("#kb-query textarea")
     expect(question).to_have_value(re.compile(r"^What happened at the estate that delayed the launch"))
@@ -616,8 +634,7 @@ def test_query_knowledge_base_workflow(page: Page, live_server_url: str, live_sm
 
 def test_displays_knowledge_base_configuration(page: Page, live_server_url: str, live_smoke: bool) -> None:
     mock_app_apis(page, live_smoke)
-    page.goto(live_server_url)
-    page.locator(".nav-group-kb").get_by_role("button", name="Configuration", exact=True).click()
+    page.goto(f"{live_server_url}knowledge-base/configuration")
     expect(page).to_have_url(re.compile(r"/knowledge-base/configuration$"))
 
     configuration = page.locator("#kb-configuration-details")
@@ -695,39 +712,29 @@ def test_diy_agents_page_shows_answer_and_activity_log(
         route.fulfill(status=200, content_type="application/json", body=json.dumps(DIY_ANSWER))
 
     page.route(re.compile(r".*/api/diy/ask$"), handle_ask)
-    page.goto(live_server_url)
-    page.locator(".nav-group-diy").get_by_role("button", name="Ask a DIY agent", exact=True).click()
-    expect(page).to_have_url(re.compile(r"/diy-agents$"))
+    page.goto(f"{live_server_url}diy-agents")
+    expect(page).to_have_url(re.compile(r"/diy-agents\?agent=diy-baseline&question=Which\+origin"))
 
-    baseline = page.locator('.diy-step[data-step="diy-baseline"]')
-    expect(baseline).to_have_attribute("aria-pressed", "true")
-    expect(baseline).to_contain_text("Not running")
+    agent = page.locator("#diy-agent")
+    expect(agent).to_have_value("diy-baseline")
+    expect(agent.locator("option")).to_have_text(["1 · Baseline (not running)", "2 · Reflection"])
+    expect(page).to_have_title("1 · Baseline · Succeeds: tasting panel winner")
     expect(page.locator("#diy-hint")).to_be_visible()
     expect(page.locator("#diy-hint")).to_contain_text("python -m scripts.run_diy_agents")
-    expect(page.locator("#diy-question")).to_have_value("Which origin won the tasting panel?")
-    example = page.locator("#diy-example")
-    expect(example.locator("option")).to_have_text(["Succeeds: tasting panel winner", "Fails: Madagascar panel and hold"])
-    example.select_option(label="Fails: Madagascar panel and hold")
-    expect(page.locator("#diy-question")).to_have_value("What did the tasting panel think of the bar?")
+    question = page.locator("#diy-question")
+    expect(question).to_have_value("Which origin won the tasting panel?")
+    expect(page.locator("#diy-example")).to_have_count(0)
+    expect(page.locator("#diy-output")).to_contain_text("will appear here")
 
-    page.locator('.diy-step[data-step="diy-reflection"]').click()
+    agent.select_option("diy-reflection")
     expect(page.locator("#diy-hint")).to_be_hidden()
     expect(page.locator("#diy-capability")).to_contain_text("follow-up searches")
-    question = page.locator("#diy-question")
-    expect(question).to_have_value(re.compile(r"Pantry Lane"))
+    expect(question).to_have_value("Which origin won the tasting panel?")
+    expect(page).to_have_title("2 · Reflection")
+    expect(page).to_have_url(re.compile(r"\?agent=diy-reflection&question=Which\+origin"))
 
-    expect(example.locator("option")).to_have_text(["Needs reflection: Pantry Lane farms", "One round: grey Ghana bars"])
-    example.select_option(label="One round: grey Ghana bars")
-    expect(question).to_have_value("Why did the Ghana bars turn grey?")
-    example.select_option(label="Needs reflection: Pantry Lane farms")
-    expect(question).to_have_value(re.compile(r"Pantry Lane"))
-
-    question.fill("Which farms grew the cacao?")
-    page.locator('.diy-step[data-step="diy-baseline"]').click()
-    expect(page.locator("#diy-question")).to_have_value("Which farms grew the cacao?")
-    page.locator('.diy-step[data-step="diy-reflection"]').click()
-    example.select_option(label="Needs reflection: Pantry Lane farms")
-
+    question.fill(DIY_AGENTS["steps"][1]["examples"][0]["question"])
+    expect(page).to_have_title("2 · Reflection · Needs reflection: Pantry Lane farms")
     page.get_by_role("button", name="Ask agent").click()
 
     output = page.locator("#diy-output")
@@ -800,6 +807,54 @@ def test_diy_agents_page_shows_answer_and_activity_log(
     expect(evidence).to_contain_text("Reranker 2.91")
     assert payloads == [{"step": "diy-reflection", "question": DIY_AGENTS["steps"][1]["examples"][0]["question"]}]
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+
+
+def test_diy_agents_query_parameters_select_agent_and_question(
+    page: Page, live_server_url: str, live_smoke: bool
+) -> None:
+    if live_smoke:
+        pytest.skip("The DIY agents run locally and are not part of live smoke testing.")
+    mock_app_apis(page, live_smoke)
+    payloads: list[dict] = []
+    page.route(
+        re.compile(r".*/api/diy/ask$"),
+        lambda route: payloads.append(route.request.post_data_json) or json_response(route, DIY_ANSWER),
+    )
+    page.goto(f"{live_server_url}diy-agents?agent=diy-reflection&question=Why+did+the+Ghana+bars+turn+grey%3F")
+
+    expect(page.locator("#diy-agent")).to_have_value("diy-reflection")
+    expect(page.locator("#diy-question")).to_have_value("Why did the Ghana bars turn grey?")
+    expect(page).to_have_title("2 · Reflection · One round: grey Ghana bars")
+    expect(page.locator("#diy-output")).to_contain_text("will appear here")
+    assert payloads == []
+
+    page.locator("#diy-question").fill("Which farms grew the cacao?")
+    expect(page).to_have_url(re.compile(r"\?agent=diy-reflection&question=Which\+farms\+grew\+the\+cacao%3F$"))
+
+    page.goto(f"{live_server_url}diy-agents?agent=unknown")
+    expect(page.locator("#diy-agent")).to_have_value("diy-baseline")
+    expect(page.locator("#diy-question")).to_have_value("Which origin won the tasting panel?")
+
+    page.goto(f"{live_server_url}diy-agents?agent=diy-reflection&question=Why+did+the+Ghana+bars+turn+grey%3F&run=1")
+    expect(page.locator("#diy-output .diy-answer strong")).to_have_text("EC26-0811")
+    assert payloads == [{"step": "diy-reflection", "question": "Why did the Ghana bars turn grey?"}]
+    expect(page).to_have_url(re.compile(r"\?agent=diy-reflection&question=Why\+did[^&]*$"))
+
+
+def test_demos_page_links_each_example_in_a_new_tab(page: Page, live_server_url: str, live_smoke: bool) -> None:
+    mock_app_apis(page, live_smoke)
+    page.goto(f"{live_server_url}demos")
+
+    expect(page.locator("#demos")).to_have_class(re.compile(r"\bactive\b"))
+    if live_smoke:
+        return
+    links = page.locator("#demo-list a")
+    expect(links.locator("strong")).to_have_text(["Reflection strategy", "Baseline strategy"])
+    expect(links.nth(0)).to_contain_text("Reflection · Needs reflection: Pantry Lane farms")
+    expect(links.nth(0)).to_have_attribute("target", "_blank")
+    expect(links.nth(0)).to_have_attribute(
+        "href", "/diy-agents?agent=diy-reflection&question=A+Pantry+Lane+customer+asked+which+farms+grew+the+cacao.&run=1"
+    )
 
 
 def test_diy_agent_error_is_visible(page: Page, live_server_url: str, live_smoke: bool) -> None:

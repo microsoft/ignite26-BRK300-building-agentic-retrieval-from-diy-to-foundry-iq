@@ -49,7 +49,7 @@ class FoundryIqServiceTests(unittest.TestCase):
         knowledge_base = self.service.index_client.create_or_update_knowledge_base.call_args.args[0]
         self.assertEqual(knowledge_base.name, "cocoarynth-kb-all")
         self.assertEqual(knowledge_base.output_mode, KnowledgeRetrievalOutputMode.EXTRACTIVE_DATA)
-        self.assertEqual(knowledge_base.retrieval_reasoning_effort.kind, "low")
+        self.assertEqual(knowledge_base.retrieval_reasoning_effort.kind, "auto")
         self.assertEqual(
             [reference.name for reference in knowledge_base.knowledge_sources],
             [spec.knowledge_source for spec in KNOWLEDGE_SOURCES],

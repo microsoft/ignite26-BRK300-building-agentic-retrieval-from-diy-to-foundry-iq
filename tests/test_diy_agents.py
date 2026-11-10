@@ -78,7 +78,7 @@ class SummarizeResponseTests(unittest.TestCase):
     def test_every_step_has_labeled_examples(self) -> None:
         for step in DIY_STEPS:
             with self.subTest(step=step.name):
-                self.assertGreaterEqual(len(step.examples), 2)
+                self.assertGreaterEqual(len(step.examples), 1)
                 labels = [example.label for example in step.examples]
                 self.assertEqual(len(labels), len(set(labels)))
                 self.assertTrue(all(len(label) <= 45 for label in labels))
@@ -86,7 +86,7 @@ class SummarizeResponseTests(unittest.TestCase):
     def test_every_step_has_its_own_port(self) -> None:
         ports = [step.port for step in DIY_STEPS]
 
-        self.assertEqual(8, len(DIY_STEPS))
+        self.assertEqual(9, len(DIY_STEPS))
         self.assertEqual(len(ports), len(set(ports)))
 
 
@@ -137,6 +137,7 @@ class DiyRouteTests(unittest.TestCase):
         self.assertIn(("/api/diy/agents", "GET"), routes)
         self.assertIn(("/api/diy/ask", "POST"), routes)
         self.assertIn(("/diy-agents", "GET"), routes)
+        self.assertIn(("/demos", "GET"), routes)
 
     def test_unknown_step_returns_404(self) -> None:
         with self.assertRaises(HTTPException) as context:
@@ -212,3 +213,30 @@ class CitedDocumentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OpenDemoTabsTests(unittest.TestCase):
+    def test_demo_urls_follow_slide_order_and_run(self) -> None:
+        from urllib.parse import parse_qs, urlsplit
+
+        from app.backend.diy_agents import DEMOS
+        from scripts.open_demo_tabs import demo_urls
+
+        urls = demo_urls("http://127.0.0.1:8000/", [], run=True)
+
+        expected = [(demo.step, demo.question) for demo in DEMOS]
+        self.assertEqual("Foundry IQ knowledge base", DEMOS[5].slide)
+        self.assertEqual("foundry-iq", DEMOS[5].step)
+        self.assertEqual("foundry-iq-auto", DEMOS[-1].step)
+        parsed = [parse_qs(urlsplit(url).query) for url in urls]
+        self.assertEqual(expected, [(query["agent"][0], query["question"][0]) for query in parsed])
+        self.assertTrue(all(url.startswith("http://127.0.0.1:8000/diy-agents?") for url in urls))
+        self.assertTrue(all(query["run"] == ["1"] for query in parsed))
+
+    def test_demo_urls_filter_steps_and_skip_run(self) -> None:
+        from scripts.open_demo_tabs import demo_urls
+
+        urls = demo_urls("http://localhost:8000", ["diy-baseline"], run=False)
+
+        self.assertEqual(2, len(urls))
+        self.assertTrue(all("agent=diy-baseline" in url and "run=" not in url for url in urls))

@@ -1,5 +1,5 @@
 azure-identity==1.25.2
-azure-search-documents==12.1.0b1
+azure-search-documents==12.1.0b2
 azure-storage-blob==12.27.1
 dotenv-azd==0.3.0
 fastapi==0.141.1

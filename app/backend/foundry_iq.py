@@ -18,7 +18,7 @@ from azure.search.documents.knowledgebases.models import (
     KnowledgeBaseMessage,
     KnowledgeBaseMessageTextContent,
     KnowledgeBaseRetrievalRequest,
-    KnowledgeRetrievalLowReasoningEffort,
+    KnowledgeRetrievalAutoReasoningEffort,
     KnowledgeRetrievalOutputMode,
     SearchIndexKnowledgeSourceParams,
 )
@@ -161,7 +161,7 @@ class FoundryIqService:
             knowledge_sources=[
                 KnowledgeSourceReference(name=spec.knowledge_source) for spec in KNOWLEDGE_SOURCES
             ],
-            retrieval_reasoning_effort=KnowledgeRetrievalLowReasoningEffort(),
+            retrieval_reasoning_effort=KnowledgeRetrievalAutoReasoningEffort(),
             output_mode=KnowledgeRetrievalOutputMode.EXTRACTIVE_DATA,
             retrieval_instructions=(
                 "Use farms & harvests for origin, farm, fermentation, certification, and bean price records. "

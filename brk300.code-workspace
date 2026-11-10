@@ -27,6 +27,9 @@
         },
         {
             "path": "python/foundry-iq"
+        },
+        {
+            "path": "python/foundry-iq-auto"
         }
     ],
     "settings": {
@@ -34,7 +37,7 @@
         // Hide the steps under the root folder so each file opens from its own folder.
         "files.exclude": {
             "python/diy-*": true,
-            "python/foundry-iq": true
+            "python/foundry-iq*": true
         }
     }
 }
