@@ -9,11 +9,10 @@ infra:
   module: main
 services:
   web:
-    project: .
+    project: ./app
     language: py
     host: containerapp
     docker:
-      path: ./app/backend/Dockerfile
       remoteBuild: true
   diy-baseline:
     project: python/diy-baseline
@@ -37,8 +36,8 @@ services:
     protocols:
       - protocol: responses
         version: 2.0.0
-  diy-query-decomposition:
-    project: python/diy-query-decomposition
+  diy-query-planning:
+    project: python/diy-query-planning
     host: azure.ai.agent
     language: python
     codeConfiguration:
@@ -55,7 +54,7 @@ services:
       - name: FOUNDRY_IQ_SEARCH_ENDPOINT
         value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
     kind: hosted
-    name: diy-query-decomposition
+    name: diy-query-planning
     protocols:
       - protocol: responses
         version: 2.0.0
@@ -175,6 +174,30 @@ services:
     protocols:
       - protocol: responses
         version: 2.0.0
+  diy-complexity-routing:
+    project: python/diy-complexity-routing
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+      - name: FOUNDRY_DECISION_DEPLOYMENT_NAME
+        value: ${FOUNDRY_DECISION_DEPLOYMENT_NAME}
+    kind: hosted
+    name: diy-complexity-routing
+    protocols:
+      - protocol: responses
+        version: 2.0.0
   foundry-iq:
     project: python/foundry-iq
     host: azure.ai.agent
@@ -223,11 +246,11 @@ hooks:
   postprovision:
     windows:
       shell: pwsh
-      run: uv run --with-requirements app/backend/requirements.txt python -m scripts.preingest
+      run: uv run --with-requirements app/requirements.txt python -m scripts.preingest
       interactive: true
       continueOnError: false
     posix:
       shell: sh
-      run: uv run --with-requirements app/backend/requirements.txt python -m scripts.preingest
+      run: uv run --with-requirements app/requirements.txt python -m scripts.preingest
       interactive: true
       continueOnError: false

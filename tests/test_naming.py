@@ -1,6 +1,6 @@
 import unittest
 
-from app.backend.naming import (
+from app.naming import (
     KNOWLEDGE_BASE,
     KNOWLEDGE_SOURCES,
     KNOWLEDGE_SOURCES_BY_KEY,

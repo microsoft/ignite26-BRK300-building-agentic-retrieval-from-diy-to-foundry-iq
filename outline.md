@@ -15,7 +15,7 @@ The core framing:
 - The payoff is swapping the DIY tool for the Foundry IQ tool: the agent stays the same, and the tool body shrinks from the full orchestration to one SDK call.
 - Don't use the knowledge base MCP endpoint. It doesn't return the activity log, and MCP portability isn't a goal of this session.
 - The portal visualizes each retrieval step in an activity log, for both DIY and Foundry IQ.
-- Label DIY steps by capability (for example, "query decomposition"), not by version number.
+- Label DIY steps by capability (for example, "query planning"), not by version number.
 
 ---
 
@@ -33,7 +33,7 @@ The core framing:
 
 ### Demo question
 
-A simple, single-fact question that one hybrid search answers well. Reuse it in section 8.
+A simple, single-fact question that one hybrid search answers well. Reuse it in section 4.
 
 ### Key point
 
@@ -51,9 +51,9 @@ A single search query fails to retrieve sufficient evidence for every part of th
 
 ### What this motivates
 
-**Query decomposition**
+**Query planning**
 
-### DIY: query decomposition
+### DIY: query planning
 
 **Question -> LLM query planner -> Query A + Query B + Query C -> parallel searches -> combine results**
 
@@ -94,107 +94,7 @@ Ask a question where the first round of results reveals something (a term, entit
 
 ---
 
-## 4. Foundry IQ on one index: Microsoft Retriever 1
-
-### Pause the DIY story
-
-Part 1 searched one index, like most apps do. Show what Foundry IQ does with the same index.
-
-- A seed search with the question as written, then Microsoft Retriever 1 (MR1), a small task-specific model, reads the evidence and returns "search" or "finish". It replaces the DIY query planner and reflection prompts.
-- Demo the same questions on a one-index knowledge base with MR1.
-- Comparison 1: DIY baseline, decomposition, and reflection vs. Foundry IQ with MR1: latency, model calls, tokens, and cost per question.
-
-### Key point
-
-> On one index, a task-specific model does the planning and reflection we wrote prompts for.
-
----
-
-## 5. Failure #3: The evidence lives across sources
-
-### Show the next failure
-
-The query planner is now asking the right questions, but the required evidence is not all available in the same source.
-
-Some subqueries need Source A, while others require Source B.
-
-### What this motivates
-
-**Multi-source retrieval**
-
-### DIY: multi-source fan-out
-
-**Question -> query planner -> queries -> parallel searches across every source -> combine results**
-
-- Send every planned query to every source.
-- The application now owns a connection, query format, and result shape for each source.
-- Combine the evidence across sources.
-
-### Key point
-
-> Multi-source retrieval solves distribution of knowledge.
-
-This is a separate problem from query decomposition and should be introduced as a separate failure.
-
----
-
-## 6. Failure #4: Not every source is relevant
-
-### Show the failure
-
-Ask a question whose answer lives in only one source. Fanning out to every source adds latency and cost, and pulls in off-topic results that can distract answer generation.
-
-### What this motivates
-
-**Source selection**
-
-### DIY: source selection
-
-**Question -> query planner -> queries + target sources -> parallel searches on selected sources -> combine results**
-
-Now the application needs to determine:
-
-- which sources are relevant
-- which query should go to which source
-- how to describe each source well enough for the LLM to choose
-
-### Key point
-
-> Source selection decides where to look, not just what to ask.
-
-Introduce it after fan-out so the audience sees the cost it removes.
-
----
-
-## 7. Failure #5: Now we have a pile of evidence
-
-Multiple queries across multiple sources produce many candidate results. Scores from different queries and sources aren't directly comparable, and the best evidence gets buried or overflows the context budget.
-
-### What this motivates
-
-**Ranking across the combined result set**
-
-### DIY: LLM reranking
-
-**Combined results -> LLM reranker -> top evidence -> answer generation**
-
-The DIY system now needs to:
-
-- merge results from different queries and sources
-- use an LLM to judge each result's relevance to the original question
-- pass the strongest evidence to answer generation
-
-### Key point
-
-Ranking is another model call, with more latency, more tokens, and another prompt to maintain.
-
-It also needs tuning to be usable. The first version took about 20 seconds per call: the model reasoned before judging, and copied back every long chunk ID in its output. Labeling candidates A, B, C… and turning reasoning off brought it to about 2 seconds with the same judgments. That's the kind of tuning a DIY system has to discover and maintain itself.
-
-A specialized model is another DIY option. Microsoft-Decision-1 returns typed scores instead of text, and reranked in about 1 second instead of 2–3. But it scored chunks that answer only one part of a multi-part question too low, so follow-up results got dropped. Scoring follow-ups against what reflection says is still missing, and reserving them evidence slots, fixed that. Same lesson: every model swap needs its own evaluation and tuning.
-
----
-
-## 8. New problem: we're doing all this for every question
+## 4. New problem: we're doing all this for every question
 
 Return to the simple question from section 1 that the original Foundry IQ search call answered perfectly well.
 
@@ -206,11 +106,11 @@ Running the entire agentic pipeline would add unnecessary work.
 
 ### DIY: complexity classifier
 
-**Question -> LLM classifier -> direct retrieval OR agentic retrieval**
+**Question -> classifier -> direct retrieval OR agentic retrieval**
 
-For complex questions, the agentic path now includes:
-
-**query decomposition -> source selection -> parallel retrieval -> LLM reranking -> reflection and iteration**
+- Build it on top of the reflection step, on the same single index (`python/diy-complexity-routing`).
+- The direct route is the baseline's one search with the question as written. The agentic route is query planning plus reflection.
+- The classifier is Microsoft-Decision-1, which returns a probability instead of generated text. The application owns its criteria and threshold, measured by hand.
 
 ### Key point
 
@@ -218,11 +118,39 @@ Not every question requires the expensive path, which creates yet another decisi
 
 ---
 
-## 9. Now replace the orchestration with Foundry IQ
+## 5. Foundry IQ on one index: Microsoft Retriever 1
+
+### Same index, managed
+
+The DIY steps searched one index, like most apps do. Show what Foundry IQ does with the same index.
+
+- A seed search with the question as written, then Microsoft Retriever 1 (MR1), a small task-specific model, reads the evidence and returns "search" or "finish". It replaces the DIY query planner and reflection prompts.
+- Demo the same questions on a one-index knowledge base with minimal reasoning effort and MR1 as its only model.
+- Comparison 1: DIY baseline, query planning, and reflection vs. Foundry IQ with MR1: latency, model calls, tokens, and cost per question.
+
+### Key point
+
+> On one index, a task-specific model does the planning and reflection we wrote prompts for.
+
+---
+
+## 6. Foundry IQ auto
+
+### Auto replaces the classifier
+
+Contrast explicitly with section 4: with Foundry IQ's auto reasoning effort, the DIY complexity classifier goes away. Foundry IQ decides how much agentic retrieval each question needs.
+
+- Auto starts with a search with the question as written. If the results are strong enough, it returns with no model calls; otherwise MR1 takes over, and auto can escalate to an LLM query planner.
+- Demo the simple question on a knowledge base with auto effort, with MR1 and an Azure OpenAI model.
+- Comparison 2: DIY complexity classifier vs. Foundry IQ auto.
+
+---
+
+## 7. Now replace the orchestration with Foundry IQ
 
 ### Look what it took
 
-Open with one slide that shows the whole DIY stack before deleting it: the final architecture, marked with what the application now owns (the prompts, models, thresholds, and round limits). This replaces a separate recap section; the cost of the pipeline was already shown in section 8's setup.
+Open with one slide that shows the whole DIY stack before deleting it: the final architecture, marked with what the application now owns (the prompts, models, thresholds, and round limits). This replaces a separate recap section; the cost of the pipeline was already shown in section 4's setup.
 
 > We built agentic retrieval. Look what it took.
 
@@ -238,14 +166,9 @@ Show how the managed retrieval experience handles the capabilities that were pro
 
 - query planning
 - multiple retrievals
-- source selection
 - ranking
 - iteration
 - auto behavior for simple versus more complex retrieval needs
-
-### Auto replaces the classifier
-
-Contrast explicitly with section 8: with Foundry IQ's auto behavior, the DIY complexity classifier goes away. Foundry IQ decides how much agentic retrieval each question needs.
 
 ### Payoff
 
@@ -255,7 +178,7 @@ Contrast the amount of application-side orchestration with the DIY implementatio
 
 ---
 
-## 10. Agentic retrieval under the hood
+## 8. Agentic retrieval under the hood
 
 Now that the audience understands the problems each capability solves, explain the conceptual retrieval flow in more depth.
 
@@ -273,7 +196,7 @@ Connect each capability back to the failure that motivated it earlier in the ses
 
 ---
 
-## 11. DIY vs. Foundry IQ
+## 9. DIY vs. Foundry IQ
 
 Synthesize the comparison around what developers must own.
 
@@ -300,7 +223,7 @@ Synthesize the comparison around what developers must own.
 
 ### Latency and cost
 
-Show pre-measured numbers on a slide for the DIY pipeline versus Foundry IQ on the same questions, including the DIY query decomposition step alone:
+Show pre-measured numbers on a slide for the DIY pipeline versus Foundry IQ on the same questions, including the DIY query planning step alone:
 
 - latency
 - LLM calls and tokens per question
@@ -314,21 +237,112 @@ The comparison should not be "DIY bad, product good." The DIY implementation is 
 
 ---
 
-## 12. Takeaway
+## 10. Takeaway
 
 > Understand the machinery, then decide how much of it you actually want to own.
 
 The progression of the session is:
 
 1. One strong retrieval works.
-2. A multi-part question breaks it -> add query decomposition.
+2. A multi-part question breaks it -> add query planning.
 3. The first pass isn't enough -> add reflection and iteration.
-4. Foundry IQ on one index: Microsoft Retriever 1 replaces planning and reflection. Comparison 1.
-5. Evidence across sources breaks that -> add multi-source fan-out.
-6. Fan-out searches irrelevant sources -> add source selection.
-7. Too much evidence -> add LLM reranking.
-8. Simple questions don't need the whole pipeline -> add a complexity classifier.
-9. Foundry IQ auto replaces the classifier. Comparison 2. Look at what we've accumulated, then replace the DIY orchestration with Foundry IQ.
+4. Simple questions don't need the whole pipeline -> add a complexity classifier.
+5. Foundry IQ on one index: Microsoft Retriever 1 replaces planning and reflection. Comparison 1.
+6. Foundry IQ auto replaces the classifier. Comparison 2.
+7. Look at what we've accumulated, then replace the DIY orchestration with Foundry IQ.
+
+---
+
+## Not covered: multi-source retrieval
+
+The talk stays on one index. We're specifically not covering multi-source fan-out, source selection, or LLM reranking across sources, for two reasons:
+
+- Time: the single-index story (query planning, reflection, complexity routing) already fills the DIY half.
+- Microsoft Retriever 1 doesn't do multi-source selection, so these steps have no MR1 counterpart to compare against.
+
+The code stays in `python/diy-multi-source-fanout`, `python/diy-source-selection`, `python/diy-llm-reranking`, and `python/diy-complexity-classifier` (the classifier built on those steps), and the deck keeps their slides as an appendix. The portal and `scripts.run_diy_agents` don't list them. The original plan for these sections follows.
+
+### Failure: The evidence lives across sources
+
+#### Show the next failure
+
+The query planner is now asking the right questions, but the required evidence is not all available in the same source.
+
+Some subqueries need Source A, while others require Source B.
+
+#### What this motivates
+
+**Multi-source retrieval**
+
+#### DIY: multi-source fan-out
+
+**Question -> query planner -> queries -> parallel searches across every source -> combine results**
+
+- Send every planned query to every source.
+- The application now owns a connection, query format, and result shape for each source.
+- Combine the evidence across sources.
+
+#### Key point
+
+> Multi-source retrieval solves distribution of knowledge.
+
+This is a separate problem from query planning and should be introduced as a separate failure.
+
+---
+
+### Failure: Not every source is relevant
+
+#### Show the failure
+
+Ask a question whose answer lives in only one source. Fanning out to every source adds latency and cost, and pulls in off-topic results that can distract answer generation.
+
+#### What this motivates
+
+**Source selection**
+
+#### DIY: source selection
+
+**Question -> query planner -> queries + target sources -> parallel searches on selected sources -> combine results**
+
+Now the application needs to determine:
+
+- which sources are relevant
+- which query should go to which source
+- how to describe each source well enough for the LLM to choose
+
+#### Key point
+
+> Source selection decides where to look, not just what to ask.
+
+Introduce it after fan-out so the audience sees the cost it removes.
+
+---
+
+### Failure: Now we have a pile of evidence
+
+Multiple queries across multiple sources produce many candidate results. Scores from different queries and sources aren't directly comparable, and the best evidence gets buried or overflows the context budget.
+
+#### What this motivates
+
+**Ranking across the combined result set**
+
+#### DIY: LLM reranking
+
+**Combined results -> LLM reranker -> top evidence -> answer generation**
+
+The DIY system now needs to:
+
+- merge results from different queries and sources
+- use an LLM to judge each result's relevance to the original question
+- pass the strongest evidence to answer generation
+
+#### Key point
+
+Ranking is another model call, with more latency, more tokens, and another prompt to maintain.
+
+It also needs tuning to be usable. The first version took about 20 seconds per call: the model reasoned before judging, and copied back every long chunk ID in its output. Labeling candidates A, B, C… and turning reasoning off brought it to about 2 seconds with the same judgments. That's the kind of tuning a DIY system has to discover and maintain itself.
+
+A specialized model is another DIY option. Microsoft-Decision-1 returns typed scores instead of text, and reranked in about 1 second instead of 2–3. But it scored chunks that answer only one part of a multi-part question too low, so follow-up results got dropped. Scoring follow-ups against what reflection says is still missing, and reserving them evidence slots, fixed that. Same lesson: every model swap needs its own evaluation and tuning.
 
 ---
 

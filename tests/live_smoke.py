@@ -6,8 +6,8 @@ from azure.identity import AzureDeveloperCliCredential, get_bearer_token_provide
 from openai import OpenAI
 from playwright.sync_api import Page, expect
 
-from app.backend.config import Settings
-from app.backend.naming import KNOWLEDGE_SOURCES
+from app.config import Settings
+from app.naming import KNOWLEDGE_SOURCES
 
 expect.set_options(timeout=180_000)
 

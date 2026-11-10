@@ -10,7 +10,7 @@
             "packageManager": "ms-python.python:pip"
         },
         {
-            "path": "python/diy-query-decomposition",
+            "path": "python/diy-query-planning",
             "envManager": "ms-python.python:venv",
             "packageManager": "ms-python.python:pip"
         },
@@ -36,6 +36,11 @@
         },
         {
             "path": "python/diy-complexity-classifier",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/diy-complexity-routing",
             "envManager": "ms-python.python:venv",
             "packageManager": "ms-python.python:pip"
         },

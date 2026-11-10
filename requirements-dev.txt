@@ -1,4 +1,4 @@
--r app/backend/requirements.txt
+-r app/requirements.txt
 openai==3.15.0
 pytest==8.4.2
 pytest-playwright==0.7.1

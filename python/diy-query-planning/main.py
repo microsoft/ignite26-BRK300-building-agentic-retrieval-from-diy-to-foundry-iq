@@ -1,4 +1,4 @@
-"""DIY agentic retrieval, step 2: LLM query decomposition with parallel searches."""
+"""DIY agentic retrieval, step 2: LLM query planning with parallel searches."""
 
 import asyncio
 import json
@@ -16,7 +16,7 @@ from azure.search.documents.aio import SearchClient
 from azure.search.documents.models import QueryType, VectorizableTextQuery
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger("diy-query-decomposition")
+logger = logging.getLogger("diy-query-planning")
 
 PROJECT_ENDPOINT = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
 MODEL_DEPLOYMENT_NAME = os.environ["FOUNDRY_MODEL_DEPLOYMENT_NAME"]
@@ -145,7 +145,7 @@ async def search_knowledge(
 async def main() -> None:
     agent = Agent(
         client=chat_client,
-        name="diy-query-decomposition",
+        name="diy-query-planning",
         instructions="""You answer questions about Cocoarynth Chocolate Works, a bean-to-bar
         chocolate maker, from its company records.
         Always call search_knowledge with the user's full question before answering,

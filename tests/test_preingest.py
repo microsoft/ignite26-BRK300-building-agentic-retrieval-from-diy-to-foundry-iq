@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 from azure.core.exceptions import HttpResponseError, ResourceExistsError
 
-from app.backend.config import Settings
+from app.config import Settings
 from scripts.preingest import (
     ENGINEERING_PRACTICE_CORPUS,
     build_combined_index,

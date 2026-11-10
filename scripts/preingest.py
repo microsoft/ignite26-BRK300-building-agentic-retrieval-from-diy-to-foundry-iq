@@ -20,9 +20,9 @@ from azure.search.documents.indexes import SearchIndexerClient
 from azure.search.documents.indexes.models import SearchIndex
 from azure.storage.blob import BlobServiceClient, ContainerClient
 
-from app.backend.config import Settings
-from app.backend.foundry_iq import CHUNK_FIELDS, FoundryIqService
-from app.backend.naming import (
+from app.config import Settings
+from app.foundry_iq import CHUNK_FIELDS, FoundryIqService
+from app.naming import (
     COMBINED_INDEX,
     COMBINED_INDEX_SOURCE_KEYS,
     KNOWLEDGE_SOURCES_BY_KEY,

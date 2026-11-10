@@ -5,9 +5,9 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.search.documents.indexes.models import SearchIndexKnowledgeSource
 from azure.search.documents.knowledgebases.models import KnowledgeRetrievalOutputMode
 
-from app.backend.config import Settings
-from app.backend.foundry_iq import FoundryIqService
-from app.backend.naming import KNOWLEDGE_SOURCES
+from app.config import Settings
+from app.foundry_iq import FoundryIqService
+from app.naming import KNOWLEDGE_SOURCES
 
 
 class FoundryIqServiceTests(unittest.TestCase):
@@ -70,7 +70,7 @@ class FoundryIqServiceTests(unittest.TestCase):
             ["cocoarynth-kb-docs", "cocoarynth-kb-engineering-practices"],
         )
 
-    @patch("app.backend.foundry_iq.SearchClient")
+    @patch("app.foundry_iq.SearchClient")
     def test_lists_ordered_chunks_for_one_document(self, search_client_type: Mock) -> None:
         search_client_type.return_value.search.return_value = [{"chunk_id": "chunk-1"}]
 
@@ -84,7 +84,7 @@ class FoundryIqServiceTests(unittest.TestCase):
             ["page_number_from asc", "page_number_to asc", "chunk_id asc"],
         )
 
-    @patch("app.backend.foundry_iq.SearchClient")
+    @patch("app.foundry_iq.SearchClient")
     def test_lists_chunks_from_the_requested_index(self, search_client_type: Mock) -> None:
         search_client_type.return_value.search.return_value = [{"chunk_id": "style-chunk-1"}]
 
@@ -97,7 +97,7 @@ class FoundryIqServiceTests(unittest.TestCase):
             self.service.credential,
         )
 
-    @patch("app.backend.foundry_iq.SearchClient")
+    @patch("app.foundry_iq.SearchClient")
     def test_runs_hybrid_semantic_search(self, search_client_type: Mock) -> None:
         caption = Mock()
         caption.as_dict.return_value = {"text": "CSV is required.", "highlights": "<em>CSV</em> is required."}
@@ -122,7 +122,7 @@ class FoundryIqServiceTests(unittest.TestCase):
         self.assertEqual(arguments["vector_queries"][0].text, "CSV export")
         self.assertEqual(arguments["semantic_configuration_name"], "semantic-configuration")
 
-    @patch("app.backend.foundry_iq.KnowledgeBaseRetrievalClient")
+    @patch("app.foundry_iq.KnowledgeBaseRetrievalClient")
     def test_retrieval_requests_extractive_data_and_activity(self, retrieval_client_type: Mock) -> None:
         retrieval_client_type.return_value.retrieve.return_value.as_dict.return_value = {"activity": []}
 

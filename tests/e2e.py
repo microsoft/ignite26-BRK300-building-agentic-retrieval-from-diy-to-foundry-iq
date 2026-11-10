@@ -13,9 +13,9 @@ import requests
 import uvicorn
 from playwright.sync_api import Page, Route, expect
 
-from app.backend.config import Settings
-from app.backend.main import app
-from app.backend.naming import KNOWLEDGE_SOURCES, KnowledgeSourceSpec
+from app.config import Settings
+from app.main import app
+from app.naming import KNOWLEDGE_SOURCES, KnowledgeSourceSpec
 
 expect.set_options(timeout=10_000)
 

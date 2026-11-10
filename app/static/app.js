@@ -523,7 +523,11 @@ function appendDiyActivityDetails(details, activity) {
   switch (activity.type) {
     case "diyToolCall":
       appendActivityFact(details, "Tool", activity.name);
-      for (const [name, value] of Object.entries(activity.arguments || {})) appendActivityFact(details, name, value);
+      if (activity.arguments && typeof activity.arguments === "object") {
+        for (const [name, value] of Object.entries(activity.arguments)) appendActivityFact(details, name, value);
+      } else if (activity.arguments) {
+        appendActivityFact(details, "Arguments", String(activity.arguments));
+      }
       if (activity.error) details.append(element("div", "activity-error", activity.error));
       break;
     case "diy:search":

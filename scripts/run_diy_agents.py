@@ -13,7 +13,7 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
-from app.backend.diy_agents import DIY_STEPS, DIY_STEPS_BY_NAME, DiyStep
+from app.diy_agents import DIY_STEPS, DIY_STEPS_BY_NAME, DiyStep
 
 AGENTS_DIR = Path(__file__).parents[1] / "python"
 # Microsoft Retriever 1 is only enabled on a preview search service, whose connection lives in this ignored file.

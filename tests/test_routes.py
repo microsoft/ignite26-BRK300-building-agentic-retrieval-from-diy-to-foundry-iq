@@ -6,7 +6,7 @@ from unittest.mock import Mock
 from azure.core.exceptions import ServiceRequestError
 from fastapi.testclient import TestClient
 
-from app.backend.main import app, azure_service_error
+from app.main import app, azure_service_error
 
 
 class RouteContractTests(unittest.TestCase):

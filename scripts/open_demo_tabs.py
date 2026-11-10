@@ -12,7 +12,7 @@ import time
 import webbrowser
 from urllib.parse import urlencode
 
-from app.backend.diy_agents import DEMOS, DIY_STEPS_BY_NAME
+from app.diy_agents import DEMOS, DIY_STEPS_BY_NAME
 
 
 def demo_urls(base_url: str, step_names: list[str], run: bool) -> list[str]:

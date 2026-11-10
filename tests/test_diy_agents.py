@@ -8,14 +8,14 @@ import httpx2
 from azure.core.exceptions import ResourceNotFoundError
 from fastapi import HTTPException
 
-from app.backend.diy_agents import (
+from app.diy_agents import (
     DIY_STEPS,
     DIY_STEPS_BY_NAME,
     DiyAgentUnavailableError,
     ask,
     summarize_response,
 )
-from app.backend.main import (
+from app.main import (
     DiyAskRequest,
     app,
     diy_agent_error,
@@ -62,6 +62,18 @@ class SummarizeResponseTests(unittest.TestCase):
         self.assertEqual("query_planning", call["activity"][0]["step"])
         self.assertEqual("sensory-panel-report-2026-09.pdf", call["evidence"][0]["title"])
 
+    def test_reads_the_first_copy_of_repeated_arguments(self) -> None:
+        arguments = '{"question": "Which origin won?"}{"question": "Which origin won?"}'
+        response = {
+            "output": [
+                {"type": "function_call", "call_id": "c", "name": "search_knowledge", "arguments": arguments},
+            ]
+        }
+
+        [call] = summarize_response(response)["toolCalls"]
+
+        self.assertEqual({"question": "Which origin won?"}, call["arguments"])
+
     def test_keeps_tool_errors_that_are_not_json(self) -> None:
         response = {
             "output": [
@@ -86,7 +98,7 @@ class SummarizeResponseTests(unittest.TestCase):
     def test_every_step_has_its_own_port(self) -> None:
         ports = [step.port for step in DIY_STEPS]
 
-        self.assertEqual(9, len(DIY_STEPS))
+        self.assertEqual(6, len(DIY_STEPS))
         self.assertEqual(len(ports), len(set(ports)))
 
 
@@ -101,7 +113,7 @@ class AskTests(unittest.TestCase):
             return original(*args, transport=httpx2.MockTransport(refuse), **kwargs)
 
         with (
-            patch("app.backend.diy_agents.httpx2.AsyncClient", side_effect=client_with_transport),
+            patch("app.diy_agents.httpx2.AsyncClient", side_effect=client_with_transport),
             self.assertRaises(DiyAgentUnavailableError),
         ):
             asyncio.run(ask(DIY_STEPS[0], "Which origin won?"))
@@ -119,7 +131,7 @@ class AskTests(unittest.TestCase):
             return original(*args, transport=httpx2.MockTransport(respond), **kwargs)
 
         step = DIY_STEPS_BY_NAME["diy-reflection"]
-        with patch("app.backend.diy_agents.httpx2.AsyncClient", side_effect=client_with_transport):
+        with patch("app.diy_agents.httpx2.AsyncClient", side_effect=client_with_transport):
             result = asyncio.run(ask(step, "Which farms grew the cacao?"))
 
         self.assertEqual(f"http://127.0.0.1:{step.port}/responses", str(requests[0].url))
@@ -145,7 +157,7 @@ class DiyRouteTests(unittest.TestCase):
 
         self.assertEqual(404, context.exception.status_code)
 
-    @patch("app.backend.main.ask_diy_agent", new_callable=AsyncMock)
+    @patch("app.main.ask_diy_agent", new_callable=AsyncMock)
     def test_ask_route_calls_the_selected_step(self, ask_agent: AsyncMock) -> None:
         ask_agent.return_value = {"answer": "ok"}
 
@@ -219,14 +231,14 @@ class OpenDemoTabsTests(unittest.TestCase):
     def test_demo_urls_follow_slide_order_and_run(self) -> None:
         from urllib.parse import parse_qs, urlsplit
 
-        from app.backend.diy_agents import DEMOS
+        from app.diy_agents import DEMOS
         from scripts.open_demo_tabs import demo_urls
 
         urls = demo_urls("http://127.0.0.1:8000/", [], run=True)
 
         expected = [(demo.step, demo.question) for demo in DEMOS]
-        self.assertEqual("Foundry IQ knowledge base", DEMOS[5].slide)
-        self.assertEqual("foundry-iq", DEMOS[5].step)
+        self.assertEqual("Foundry IQ knowledge base", DEMOS[7].slide)
+        self.assertEqual("foundry-iq", DEMOS[7].step)
         self.assertEqual("foundry-iq-auto", DEMOS[-1].step)
         parsed = [parse_qs(urlsplit(url).query) for url in urls]
         self.assertEqual(expected, [(query["agent"][0], query["question"][0]) for query in parsed])

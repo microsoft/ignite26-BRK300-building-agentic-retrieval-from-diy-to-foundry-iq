@@ -1,9 +1,0 @@
-.azure/
-.git/
-.github/
-.pytest_cache/
-.venv/
-**/__pycache__/
-*.pyc
-test-results/
-tests/

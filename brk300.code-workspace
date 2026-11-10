@@ -8,7 +8,7 @@
             "path": "python/diy-baseline"
         },
         {
-            "path": "python/diy-query-decomposition"
+            "path": "python/diy-query-planning"
         },
         {
             "path": "python/diy-multi-source-fanout"
@@ -24,6 +24,9 @@
         },
         {
             "path": "python/diy-complexity-classifier"
+        },
+        {
+            "path": "python/diy-complexity-routing"
         },
         {
             "path": "python/foundry-iq"
