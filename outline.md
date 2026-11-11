@@ -41,7 +41,7 @@ A strong individual search is useful, but some questions cannot be answered by o
 
 ---
 
-## 2. Failure #1: The question is multi-part
+## 2. Failure #1: The question is compound
 
 ### Show the failure
 
@@ -70,11 +70,13 @@ The audience should now understand why agentic retrieval may need to turn one co
 
 ---
 
-## 3. Failure #2: The first pass isn't enough
+## 3. Failure #2: The question is multi-hop
 
 ### Show the failure
 
-Ask a question where the first round of results reveals something (a term, entity, or reference) that a follow-up search must look up. A single planning pass can't anticipate it.
+Ask a multi-hop question: the first round of results reveals something (a term, entity, or reference) that a follow-up search must look up. A single planning pass can't anticipate it.
+
+Contrast it with section 2: a compound question's searches are independent and run in parallel, while a multi-hop question's next search depends on what the last one found.
 
 ### What this motivates
 
@@ -244,8 +246,8 @@ The comparison should not be "DIY bad, product good." The DIY implementation is 
 The progression of the session is:
 
 1. One strong retrieval works.
-2. A multi-part question breaks it -> add query planning.
-3. The first pass isn't enough -> add reflection and iteration.
+2. A compound question breaks it -> add query planning.
+3. A multi-hop question breaks it -> add reflection and iteration.
 4. Simple questions don't need the whole pipeline -> add a complexity classifier.
 5. Foundry IQ on one index: Microsoft Retriever 1 replaces planning and reflection. Comparison 1.
 6. Foundry IQ auto replaces the classifier. Comparison 2.
@@ -342,7 +344,7 @@ Ranking is another model call, with more latency, more tokens, and another promp
 
 It also needs tuning to be usable. The first version took about 20 seconds per call: the model reasoned before judging, and copied back every long chunk ID in its output. Labeling candidates A, B, C… and turning reasoning off brought it to about 2 seconds with the same judgments. That's the kind of tuning a DIY system has to discover and maintain itself.
 
-A specialized model is another DIY option. Microsoft-Decision-1 returns typed scores instead of text, and reranked in about 1 second instead of 2–3. But it scored chunks that answer only one part of a multi-part question too low, so follow-up results got dropped. Scoring follow-ups against what reflection says is still missing, and reserving them evidence slots, fixed that. Same lesson: every model swap needs its own evaluation and tuning.
+A specialized model is another DIY option. Microsoft-Decision-1 returns typed scores instead of text, and reranked in about 1 second instead of 2–3. But it scored chunks that answer only one part of a compound question too low, so follow-up results got dropped. Scoring follow-ups against what reflection says is still missing, and reserving them evidence slots, fixed that. Same lesson: every model swap needs its own evaluation and tuning.
 
 ---
 

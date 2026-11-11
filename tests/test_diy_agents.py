@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from app.diy_agents import (
     DIY_STEPS,
     DIY_STEPS_BY_NAME,
+    DiyAgentFailedError,
     DiyAgentUnavailableError,
     ask,
     summarize_response,
@@ -140,6 +141,19 @@ class AskTests(unittest.TestCase):
         self.assertIsInstance(result["startedAtMs"], int)
         self.assertGreaterEqual(result["elapsedMs"], 0)
         self.assertEqual("Madagascar won.", result["answer"])
+
+    def test_failed_response_raises_with_the_agent_error(self) -> None:
+        failed = {"status": "failed", "error": {"code": "server_error", "message": "Error code: 401"}, "output": []}
+        original = httpx2.AsyncClient
+
+        def client_with_transport(*args, **kwargs):
+            return original(*args, transport=httpx2.MockTransport(lambda _: httpx2.Response(200, json=failed)), **kwargs)
+
+        with (
+            patch("app.diy_agents.httpx2.AsyncClient", side_effect=client_with_transport),
+            self.assertRaisesRegex(DiyAgentFailedError, "diy-baseline failed: Error code: 401"),
+        ):
+            asyncio.run(ask(DIY_STEPS[0], "Which origin won?"))
 
 
 class DiyRouteTests(unittest.TestCase):

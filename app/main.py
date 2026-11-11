@@ -1,3 +1,5 @@
+import os
+import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -13,7 +15,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import Settings, is_running_in_production
-from .diy_agents import DEMOS, DIY_STEPS_BY_NAME, DiyAgentUnavailableError
+from .diy_agents import (
+    DEMOS,
+    DIY_STEPS_BY_NAME,
+    DiyAgentFailedError,
+    DiyAgentUnavailableError,
+)
 from .diy_agents import ask as ask_diy_agent
 from .diy_agents import list_steps as list_diy_steps
 from .foundry_iq import FoundryIqService
@@ -36,9 +43,19 @@ class DiyAskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=2000)
 
 
+def use_utc_for_azd_tokens() -> None:
+    """AzureDeveloperCliCredential reads azd's UTC "expiresOn" as local time, so outside UTC it keeps using
+    expired tokens (401 errors about an hour after startup). Running in UTC makes the two agree."""
+    os.environ["TZ"] = "UTC"
+    if hasattr(time, "tzset"):
+        time.tzset()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = Settings.from_environment()
+    if not is_running_in_production():
+        use_utc_for_azd_tokens()
     credential = (
         ManagedIdentityCredential(client_id=settings.managed_identity_client_id)
         if is_running_in_production()
@@ -81,6 +98,11 @@ async def diy_agent_unavailable(_: Request, error: DiyAgentUnavailableError) -> 
             )
         },
     )
+
+
+@app.exception_handler(DiyAgentFailedError)
+async def diy_agent_failed(_: Request, error: DiyAgentFailedError) -> JSONResponse:
+    return JSONResponse(status_code=502, content={"detail": str(error)})
 
 
 @app.exception_handler(httpx2.HTTPError)

@@ -47,6 +47,9 @@ def start(step: DiyStep) -> subprocess.Popen[str]:
     venv = ensure_venv(step_dir)
     bin_dir = venv / ("Scripts" if os.name == "nt" else "bin")
     env = {**os.environ, "VIRTUAL_ENV": str(venv), "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+    # AzureDeveloperCliCredential reads azd's UTC token expiry as local time, so outside UTC the agents keep
+    # using expired tokens and get 401 errors about an hour after they start. Running in UTC avoids that.
+    env["TZ"] = "UTC"
     if step.name.startswith("foundry-iq") and "FOUNDRY_IQ_KB_ENDPOINT" not in os.environ:
         env.update(foundry_iq_env())
     return subprocess.Popen(

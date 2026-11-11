@@ -103,8 +103,10 @@ Run a step locally with the Foundry agent CLI. `azd ai agent run` expects the vi
 cd python/diy-baseline
 uv venv && uv pip install uv
 source .venv/bin/activate
-azd ai agent run diy-baseline --no-client
+TZ=UTC azd ai agent run diy-baseline --no-client
 ```
+
+`TZ=UTC` works around an `azure-identity` bug: `AzureDeveloperCliCredential` reads azd's UTC token expiry as local time, so outside UTC an agent keeps using its expired token and gets 401 errors about an hour after it starts. `scripts.run_diy_agents` and the local portal set it for you.
 
 `azd ai agent run` keeps running, so invoke the agent from a second terminal. The local server always listens on port 8088, so stop one step before starting the next. `azd ai agent invoke` reuses the agent's previous conversation by default, so the commands pass `--new-conversation`; without it, a repeated question can be answered from history without searching. Each step has a question that shows the capability it adds (M1–M7 are the mysteries in [data/cocoarynth/questions.yaml](data/cocoarynth/questions.yaml)):
 

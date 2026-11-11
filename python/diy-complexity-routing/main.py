@@ -29,7 +29,7 @@ INDEX_NAME = "cocoarynth-all-index"
 MAX_ROUNDS = 3
 # "decision" routes with Microsoft-Decision-1; "chat" asks the chat model, which also writes a reason.
 ROUTER: Literal["decision", "chat"] = "decision"
-# With ROUTE_CRITERIA below, Decision-1 gave three simple questions p(agentic) <= 0.12 and four multi-part or
+# With ROUTE_CRITERIA below, Decision-1 gave three simple questions p(agentic) <= 0.12 and four compound or
 # multi-hop questions >= 0.95. Criteria about "follow-up lookups" scored the estate question only 0.32.
 AGENTIC_PROBABILITY_THRESHOLD = 0.8
 

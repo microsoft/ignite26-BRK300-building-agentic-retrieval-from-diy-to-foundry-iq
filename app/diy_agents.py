@@ -102,17 +102,25 @@ def _demo(slide: str, step: str, question: str) -> Demo:
 
 # The talk's demos, in slide order. The slide titles match the deck's demo slides.
 DEMOS = (
-    _demo("Baseline strategy", "diy-baseline", TASTING_PANEL.question),
-    _demo("Baseline strategy: multi-part question", "diy-baseline", MADAGASCAR_PANEL),
-    _demo("Query planning strategy", "diy-query-planning", MADAGASCAR_PANEL),
-    _demo("Query planning strategy: follow-up question", "diy-query-planning", MADAGASCAR_ESTATE),
-    _demo("Reflection strategy", "diy-reflection", MADAGASCAR_ESTATE),
-    _demo("Complexity classifier strategy", "diy-complexity-routing", STORAGE_TEMPERATURE),
-    _demo("Complexity classifier strategy", "diy-complexity-routing", MADAGASCAR_ESTATE),
+    _demo("Baseline approach", "diy-baseline", TASTING_PANEL.question),
+    _demo("Baseline approach with compound question", "diy-baseline", MADAGASCAR_PANEL),
+    _demo("Query planning approach", "diy-query-planning", MADAGASCAR_PANEL),
+    _demo("Query planning approach with multi-hop question", "diy-query-planning", MADAGASCAR_ESTATE),
+    _demo("Reflection approach", "diy-reflection", MADAGASCAR_ESTATE),
+    _demo("Complexity classifier approach", "diy-complexity-routing", STORAGE_TEMPERATURE),
+    _demo("Complexity classifier approach", "diy-complexity-routing", MADAGASCAR_ESTATE),
     _demo("Foundry IQ knowledge base", "foundry-iq", MADAGASCAR_ESTATE),
     _demo("Foundry IQ Auto: simple question", "foundry-iq-auto", STORAGE_TEMPERATURE),
 )
 AGENT_TIMEOUT_SECONDS = 240
+
+
+class DiyAgentFailedError(Exception):
+    """The agent answered the request, but reported that it failed to produce a response."""
+
+    def __init__(self, step: DiyStep, message: str) -> None:
+        super().__init__(f"{step.name} failed: {message}")
+        self.step = step
 
 
 class DiyAgentUnavailableError(Exception):
@@ -197,9 +205,12 @@ async def ask(step: DiyStep, question: str) -> dict[str, Any]:
         except httpx2.ConnectError as error:
             raise DiyAgentUnavailableError(step) from error
     response.raise_for_status()
+    payload = response.json()
+    if payload.get("status") == "failed":
+        raise DiyAgentFailedError(step, (payload.get("error") or {}).get("message") or "no error message")
     return {
         "step": step.name,
         "startedAtMs": started_at_ms,
         "elapsedMs": round((time.perf_counter() - started) * 1000),
-        **summarize_response(response.json()),
+        **summarize_response(payload),
     }
