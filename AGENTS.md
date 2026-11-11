@@ -9,6 +9,8 @@ Why does agentic retrieval matter, and what does it take to build it yourself? I
 
 Say "Foundry IQ", never "Azure AI Search", in slides, speaker notes, docs, and UI text. Code identifiers that come from SDKs or Azure resource types, such as `SearchClient`, `azure-search-documents`, or `Microsoft.Search/searchServices`, keep their names.
 
+On slides, write "Microsoft Retriever 1" in slide titles and panel headings, and `microsoft-retriever-1` in body text, diagram labels, tables, chart labels, captions, and footers. Don't write "MR1" on slides. Speaker notes use the spoken name, "Microsoft Retriever 1".
+
 ## Slide guidelines
 
 Slides follow this year's Ignite theme, even where it differs from the Cocoarynth brand used in the portal and documents.
@@ -45,7 +47,7 @@ Track deck TODOs here, not in speaker notes.
 - **Keep the reranker threshold at 2.0 for MR1 demos.** At 1.5 or lower, the first search returns plenty of loosely related chunks and MR1 finishes without searching again, missing the estate's harvest report. At 2.25 or higher, too little evidence survives. The Foundry IQ team has the failing cases.
 - **Confirm what's public about MR1 before Ignite:** its name, the two-follow-up limit, and pricing ($0.10 per million input tokens, output free). The MR1 slide and the cost slide use all three.
 - **Refresh the MR1 eval numbers before Ignite.** "Microsoft Retriever 1 finds more of the evidence" and "Auto with Microsoft Retriever 1: about 6× faster" show pre-production benchmark results (559 questions; finish points from 8,005 auto requests), not Cocoarynth data. Replace them with release numbers once they're published. "Microsoft Retriever 1 improves search performance" stacks search quality over token count; the token chart uses the orchestrating-agent numbers from the MSR1 blog draft.
-- **Add the MR1 blog's aka link.** Add it to "Microsoft Retriever 1 improves search performance" once the blog post has one.
+- **Re-capture "DIY vs. auto: cost per question" on our environment.** All three rows come from a lab measurement: copies of the six sources on the `magottei-s1m-wecus-serverless` search service, with gpt-6-luna (`magottei-swedencentral-foundry`) as both the DIY chat model and the knowledge base's LLM planner, Decision-1 for DIY routing, and Foundry IQ auto with microsoft-retriever-1 at reranker threshold 2.0. Each cell averages 4 runs in two sets ten minutes apart; no request was throttled, and every run found the expected evidence. With the same model on both sides, DIY is cheaper on the compound question ($2.90 vs. $4.70 per 1K: DIY usually runs 2 semantic queries, auto ranks the results of about 20 searches). DIY times vary with its reflection rounds (compound 6.4–10.6 s, multi-hop 13.1–17.7 s). Costs exclude serverless compute and storage. The storage stats on "Foundry IQ Auto with Microsoft Retriever 1" come from the same runs. Re-run the three questions with `cocoarynth-kb-all` (switched to MR1) and the DIY steps on our environment before Ignite.
 
 ## Development Tips
 
