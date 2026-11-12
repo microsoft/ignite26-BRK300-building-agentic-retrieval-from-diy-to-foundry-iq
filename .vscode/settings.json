@@ -53,6 +53,11 @@
             "path": "python/foundry-iq-auto",
             "envManager": "ms-python.python:venv",
             "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/foundry-iq-agentic-search",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
         }
     ]
 }

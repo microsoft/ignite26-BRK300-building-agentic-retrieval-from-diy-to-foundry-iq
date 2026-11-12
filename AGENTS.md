@@ -19,7 +19,6 @@ Slides follow this year's Ignite theme, even where it differs from the Cocoarynt
 - Text color: black (`#000000`) for headings and body text.
 - Colors: use the Microsoft brand colors below. Type and background combinations must meet a 4.5:1 contrast ratio, and color must not be the only way information is conveyed.
 - Cocoarynth logos and document screenshots can appear as imagery.
-- No code on slides. Keep slides high-level and architectural, since the audience includes both Python and C# developers. Link each DIY step's slide to its code instead.
 
 | Family | Light | Mid | Dark |
 |---|---|---|---|
@@ -134,13 +133,13 @@ Each step logs its activity to the `azd ai agent run` terminal as `INFO:<step-na
 
 #### Ask the agents from the portal
 
-The portal's **DIY agentic retrieval** page (`/diy-agents`) asks any step a question and shows its answer, a latency waterfall (each retrieval step plus the agent's own model calls before and after retrieval, placed by the start times the agents record), the activity log (each tool call, planned and parallel searches by index, reranking, reflection rounds, routing, with timings and token usage), and the evidence it returned. Start all six agents (the four DIY steps and the two Foundry IQ agents) with one command from the repository root, then start the portal as described above and open <http://127.0.0.1:8000/diy-agents>:
+The portal's **DIY agentic retrieval** page (`/diy-agents`) asks any step a question and shows its answer, a latency waterfall (each retrieval step plus the agent's own model calls before and after retrieval, placed by the start times the agents record), the activity log (each tool call, planned and parallel searches by index, reranking, reflection rounds, routing, with timings and token usage), and the evidence it returned. Start all seven agents (the four DIY steps and the three Foundry IQ agents) with one command from the repository root, then start the portal as described above and open <http://127.0.0.1:8000/diy-agents>:
 
 ```shell
 .venv/bin/python -m scripts.run_diy_agents
 ```
 
-Each step listens on its own port (8091–8096), so all six can run at once. Pass step names to start only some of them, for example `.venv/bin/python -m scripts.run_diy_agents diy-baseline diy-reflection`. The script creates a missing step `.venv`, prints only each agent's activity log, startup, and error lines, and stops every agent on Ctrl+C. The step list, ports, and example questions live in `app/diy_agents.py`; add new steps there too. Each step has one or two examples with short labels such as "Succeeds: tasting panel winner" or "Fails: Madagascar estate delay". `DEMOS` in the same file lists the talk's demos in the deck's slide order, each with its slide title; keep it in sync when demo slides move.
+Each step listens on its own port (8091–8097), so all seven can run at once. Pass step names to start only some of them, for example `.venv/bin/python -m scripts.run_diy_agents diy-baseline diy-reflection`. The script creates a missing step `.venv`, prints only each agent's activity log, startup, and error lines, and stops every agent on Ctrl+C. The step list, ports, and example questions live in `app/diy_agents.py`; add new steps there too. Each step has one or two examples with short labels such as "Succeeds: tasting panel winner" or "Fails: Madagascar estate delay". `DEMOS` in the same file lists the talk's demos in the deck's slide order, each with its slide title; keep it in sync when demo slides move.
 
 The page has an agent dropdown, the question, and **Ask agent**. Its URL tracks the selected agent and question as `?agent=<step-name>&question=<text>`, and adding `&run=1` asks the question as soon as the page loads. The tab title names the step and, when the question matches one, the example label, such as "3 · Reflection · Succeeds: Madagascar estate delay". To open every demo in its own running tab, in slide order, start the portal and the agents, then run:
 
@@ -150,10 +149,11 @@ The page has an agent dropdown, the question, and **Ask agent**. Its URL tracks 
 
 Pass step names to open only their demos, `--no-run` to load the questions without asking them, or `--base-url` for another port. The **Demos** page (`/demos`) lists the same demos, and each link opens one in a new tab. The DIY page only reaches agents running on the same machine as the portal, so it doesn't work in the deployed portal.
 
-The two Foundry IQ agents are the same agent, but `search_knowledge` makes one retrieve call to a Foundry IQ knowledge base and reports the knowledge base's activity log as its own steps. They differ only in the knowledge base they call:
+The Foundry IQ agents are the same agent as the DIY steps, but `search_knowledge` makes one call to Foundry IQ. The first two make a retrieve call to a knowledge base and report its activity log as their own steps, and differ only in the knowledge base they call:
 
 - `python/foundry-iq` (port 8095) uses `lab673-brk300-kb-all-minimal-mr1`: minimal reasoning effort, with Microsoft Retriever 1 as its only model, over one index of every Cocoarynth record.
 - `python/foundry-iq-auto` (port 8096) uses `lab673-brk300-kb-auto-mr1`: auto reasoning effort, with Microsoft Retriever 1 and an Azure OpenAI model, over the six sources.
+- `python/foundry-iq-agentic-search` (port 8097) skips the knowledge base: `search_knowledge` makes one `SearchClient.search` call with `query_type="agentic"` on the `lab673-brk300-all` index (`FOUNDRY_IQ_SEARCH_INDEX`), and reports the subqueries, stop reason and token usage from `debug="agentic"`. Agentic search has no reranker threshold, so on the estate question it stops after the first round and misses the harvest report.
 
 Both knowledge bases live on an MR1-enabled preview search service, since MR1 isn't enabled on our subscription yet. `scripts.run_diy_agents` reads that service's endpoint and admin key from the ignored `.env.mr1` file (`AZURE_SEARCH_PREVIEW_ENDPOINT`, `AZURE_SEARCH_PREVIEW_ADMIN_KEY`) and passes them as `FOUNDRY_IQ_KB_ENDPOINT` and `FOUNDRY_IQ_KB_API_KEY`. To use another service or knowledge base, set `FOUNDRY_IQ_KB_ENDPOINT`, `FOUNDRY_IQ_KB_API_KEY`, and `FOUNDRY_IQ_KNOWLEDGE_BASE` in the shell before starting the agents.
 

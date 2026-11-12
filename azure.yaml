@@ -242,6 +242,28 @@ services:
     protocols:
       - protocol: responses
         version: 2.0.0
+  foundry-iq-agentic-search:
+    project: python/foundry-iq-agentic-search
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: foundry-iq-agentic-search
+    protocols:
+      - protocol: responses
+        version: 2.0.0
 hooks:
   postprovision:
     windows:

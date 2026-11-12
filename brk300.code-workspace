@@ -33,6 +33,9 @@
         },
         {
             "path": "python/foundry-iq-auto"
+        },
+        {
+            "path": "python/foundry-iq-agentic-search"
         }
     ],
     "settings": {

@@ -21,6 +21,7 @@ from azure.search.documents.indexes.aio import SearchIndexClient
 from azure.search.documents.knowledgebases.aio import KnowledgeBaseRetrievalClient
 from azure.search.documents.knowledgebases.models import (
     KnowledgeBaseRetrievalRequest,
+    KnowledgeRetrievalAutoReasoningEffort,
     KnowledgeRetrievalSemanticIntent,
     SearchIndexKnowledgeSourceParams,
 )
@@ -36,9 +37,6 @@ SEARCH_ENDPOINT = os.environ.get("FOUNDRY_IQ_KB_ENDPOINT") or os.environ["FOUNDR
 SEARCH_API_KEY = os.environ.get("FOUNDRY_IQ_KB_API_KEY")
 # Auto effort, models: [Microsoft Retriever 1, an Azure OpenAI model], the six Cocoarynth sources.
 KNOWLEDGE_BASE = os.environ.get("FOUNDRY_IQ_KNOWLEDGE_BASE", "lab673-brk300-kb-auto-mr1")
-# Keep only chunks the semantic ranker scores as relevant (0-4 scale), so the retrieval model
-# can tell when evidence is missing and search again.
-RERANKER_THRESHOLD = 2.0
 
 credential = (
     ManagedIdentityCredential()
@@ -126,11 +124,17 @@ async def search_knowledge(
     """Retrieve evidence from Cocoarynth's company records with a Foundry IQ knowledge base."""
     request = KnowledgeBaseRetrievalRequest(
         intents=[KnowledgeRetrievalSemanticIntent(search=question)],
+        # Auto effort: Foundry IQ decides per question how much retrieval it needs, from one search to LLM planning.
+        retrieval_reasoning_effort=KnowledgeRetrievalAutoReasoningEffort(),
         include_activity=True,
         output_mode="extractiveData",
         knowledge_source_params=[
             SearchIndexKnowledgeSourceParams(
-                knowledge_source_name=name, include_references=True, reranker_threshold=RERANKER_THRESHOLD
+                knowledge_source_name=name,
+                include_references=True,
+                # Keep only chunks the semantic ranker scores as relevant (0-4 scale), so the retrieval
+                # model can tell when evidence is missing and search again.
+                reranker_threshold=2.0,
             )
             for name in await knowledge_sources()
         ],

@@ -343,6 +343,7 @@ function activityLabel(activity) {
     "diy:complexity_routing": "Complexity routing",
     "diy:retrieval_decision": "Retrieval decision",
     "diy:semantic_ranking": "Semantic ranking",
+    "diy:agentic_search": "Agentic search",
   })[activity.type] || activity.type || "Activity";
   return activity.round ? `${label} · round ${activity.round}` : label;
 }
@@ -561,6 +562,14 @@ function appendDiyActivityDetails(details, activity) {
       break;
     case "diy:semantic_ranking":
       appendActivityFact(details, "Ranking tokens", activity.ranking_tokens?.toLocaleString());
+      break;
+    case "diy:agentic_search":
+      appendActivityFact(details, "Index", activity.index);
+      appendActivityFact(details, "Results", activity.result_count);
+      appendActivityFact(details, "Stopped", activity.termination_reason);
+      appendActivityFact(details, "Planning tokens", activity.planning_tokens?.toLocaleString());
+      appendActivityFact(details, "Ranking tokens", activity.ranking_tokens?.toLocaleString());
+      appendSearchTable(details, activity.sub_queries);
       break;
   }
 }

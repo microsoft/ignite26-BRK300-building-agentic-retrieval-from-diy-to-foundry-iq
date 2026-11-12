@@ -83,6 +83,16 @@ DIY_STEPS = (
         8096,
         (Example("Auto: storage temperature", STORAGE_TEMPERATURE),),
     ),
+    DiyStep(
+        "foundry-iq-agentic-search",
+        "Foundry IQ: agentic search",
+        "One search call with query_type=\"agentic\" on one index, with no knowledge base: a retrieval model plans queries and reranks results.",
+        8097,
+        (
+            Example("Trail: Madagascar estate delay", MADAGASCAR_ESTATE),
+            Example("Simple: storage temperature", STORAGE_TEMPERATURE),
+        ),
+    ),
 )
 DIY_STEPS_BY_NAME = {step.name: step for step in DIY_STEPS}
 
