@@ -142,8 +142,10 @@ The DIY steps searched one index, like most apps do. Show what Foundry IQ does w
 
 Contrast explicitly with section 4: with Foundry IQ's auto reasoning effort, the DIY complexity classifier goes away. Foundry IQ decides how much agentic retrieval each question needs.
 
-- Without MR1, auto starts with a search with the question as written. If the results are strong enough, it returns with no model calls; otherwise it escalates straight to the LLM query planner at medium effort, which searches each source in parallel for up to two rounds.
-- With MR1, auto starts the same way, but MR1 takes over when the first search isn't strong enough, and auto escalates to the LLM query planner only if MR1 still wants more.
+- Both auto slides draw stages as stacked rows. The initial stage is one search and a "Strong evidence?" check. The MR1 stage has the same check, then either loops ("search again") or gives up and moves to the LLM stage. The LLM stage is just the planner's search loop. No arrow goes back to the initial search.
+- Without MR1, auto starts with a search with the question as written. If the results are strong enough, it returns with no model calls; otherwise it escalates straight to the LLM query planner at medium effort, which starts again from the question, searches each source in parallel, and searches again only if the ranker still isn't confident.
+- With MR1, auto starts the same way, but the MR1 stage takes over when the first search isn't strong enough: MR1 reads the evidence and can run its own queries across every source. Auto escalates to the LLM stage only if the evidence still isn't strong.
+- Don't state the loop caps (MR1 rounds, follow-up queries, planner iterations) on slides, in notes, or in docs.
 - Demo the simple question on a knowledge base with auto effort, with MR1 and an Azure OpenAI model.
 - Comparison 2: DIY complexity classifier vs. Foundry IQ auto.
 
