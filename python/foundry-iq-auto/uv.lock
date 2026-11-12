@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -418,6 +418,26 @@ wheels = [
 ]
 
 [[package]]
+name = "azure-search-documents"
+version = "12.1.0a20261027002"
+source = { url = "https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-python/pypi/download/azure-search-documents/12.1a20261027002/azure_search_documents-12.1.0a20261027002-py3-none-any.whl" }
+dependencies = [
+    { name = "azure-core" },
+    { name = "isodate" },
+    { name = "typing-extensions" },
+]
+wheels = [
+    { url = "https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-python/pypi/download/azure-search-documents/12.1a20261027002/azure_search_documents-12.1.0a20261027002-py3-none-any.whl", hash = "sha256:95d6cbb39f0eeee8990a41cf149baac6c0e97f792c2c600d4db382a5c4d348c6" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "azure-core", specifier = ">=1.37.0" },
+    { name = "isodate", specifier = ">=0.6.1" },
+    { name = "typing-extensions", specifier = ">=4.6.0" },
+]
+
+[[package]]
 name = "azure-storage-blob"
 version = "12.31.1"
 source = { registry = "https://pypi.org/simple" }
@@ -738,8 +758,9 @@ dependencies = [
     { name = "agent-framework-foundry" },
     { name = "agent-framework-foundry-hosting" },
     { name = "agent-framework-openai" },
+    { name = "aiohttp" },
     { name = "azure-identity" },
-    { name = "httpx" },
+    { name = "azure-search-documents" },
 ]
 
 [package.metadata]
@@ -748,8 +769,9 @@ requires-dist = [
     { name = "agent-framework-foundry", specifier = ">=1.10.0" },
     { name = "agent-framework-foundry-hosting", specifier = ">=1.0.0b260813" },
     { name = "agent-framework-openai", specifier = ">=1.16.0" },
+    { name = "aiohttp", specifier = ">=3.13.0" },
     { name = "azure-identity", specifier = ">=1.25.3" },
-    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "azure-search-documents", url = "https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-python/pypi/download/azure-search-documents/12.1a20261027002/azure_search_documents-12.1.0a20261027002-py3-none-any.whl" },
 ]
 
 [[package]]

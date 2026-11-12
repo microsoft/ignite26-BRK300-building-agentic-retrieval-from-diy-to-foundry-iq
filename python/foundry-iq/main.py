@@ -11,12 +11,19 @@ import time
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-import httpx
 from agent_framework import Agent, FunctionInvocationConfiguration, tool
 from agent_framework.foundry import FoundryChatClient
 from agent_framework.openai import OpenAIChatOptions
 from agent_framework_foundry_hosting import ResponsesHostServer
+from azure.core.credentials import AzureKeyCredential
 from azure.identity.aio import AzureDeveloperCliCredential, ManagedIdentityCredential
+from azure.search.documents.indexes.aio import SearchIndexClient
+from azure.search.documents.knowledgebases.aio import KnowledgeBaseRetrievalClient
+from azure.search.documents.knowledgebases.models import (
+    KnowledgeBaseRetrievalRequest,
+    KnowledgeRetrievalSemanticIntent,
+    SearchIndexKnowledgeSourceParams,
+)
 from pydantic import Field
 
 logger = logging.getLogger("foundry-iq")
@@ -29,7 +36,6 @@ SEARCH_ENDPOINT = os.environ.get("FOUNDRY_IQ_KB_ENDPOINT") or os.environ["FOUNDR
 SEARCH_API_KEY = os.environ.get("FOUNDRY_IQ_KB_API_KEY")
 # Minimal effort, models: [Microsoft Retriever 1], one index of every Cocoarynth record.
 KNOWLEDGE_BASE = os.environ.get("FOUNDRY_IQ_KNOWLEDGE_BASE", "lab673-brk300-kb-all-minimal-mr1")
-API_VERSION = os.environ.get("FOUNDRY_IQ_KB_API_VERSION", "2026-11-01-preview")
 # Keep only chunks the semantic ranker scores as relevant (0-4 scale), so the retrieval model
 # can tell when evidence is missing and search again.
 RERANKER_THRESHOLD = 2.0
@@ -46,20 +52,14 @@ chat_client = FoundryChatClient(
     # Allow one search_knowledge call per question, so the agent can't add searches of its own.
     function_invocation_configuration=FunctionInvocationConfiguration(max_function_calls=1),
 )
-search_http = httpx.AsyncClient(base_url=SEARCH_ENDPOINT.rstrip("/"), params={"api-version": API_VERSION}, timeout=120)
-
-
-async def search_headers() -> dict[str, str]:
-    if SEARCH_API_KEY:
-        return {"api-key": SEARCH_API_KEY}
-    token = await credential.get_token("https://search.azure.com/.default")
-    return {"Authorization": f"Bearer {token.token}"}
+search_credential = AzureKeyCredential(SEARCH_API_KEY) if SEARCH_API_KEY else credential
+index_client = SearchIndexClient(SEARCH_ENDPOINT, search_credential)
+retrieval_client = KnowledgeBaseRetrievalClient(SEARCH_ENDPOINT, search_credential, knowledge_base_name=KNOWLEDGE_BASE)
 
 
 async def knowledge_sources() -> list[str]:
-    response = await search_http.get(f"/knowledgebases('{KNOWLEDGE_BASE}')", headers=await search_headers())
-    response.raise_for_status()
-    return [source["name"] for source in response.json()["knowledgeSources"]]
+    knowledge_base = await index_client.get_knowledge_base(KNOWLEDGE_BASE)
+    return [source.name for source in knowledge_base.knowledge_sources]
 
 
 def parse_time(value: str) -> float:
@@ -124,29 +124,22 @@ async def search_knowledge(
     question: Annotated[str, Field(description="The user's full question, unchanged.")],
 ) -> dict[str, Any]:
     """Retrieve evidence from Cocoarynth's company records with a Foundry IQ knowledge base."""
-    body = {
-        "intents": [{"type": "semantic", "search": question}],
-        "includeActivity": True,
-        "outputMode": "extractiveData",
-        "knowledgeSourceParams": [
-            {
-                "knowledgeSourceName": name,
-                "kind": "searchIndex",
-                "includeReferences": True,
-                "rerankerThreshold": RERANKER_THRESHOLD,
-            }
+    request = KnowledgeBaseRetrievalRequest(
+        intents=[KnowledgeRetrievalSemanticIntent(search=question)],
+        include_activity=True,
+        output_mode="extractiveData",
+        knowledge_source_params=[
+            SearchIndexKnowledgeSourceParams(
+                knowledge_source_name=name, include_references=True, reranker_threshold=RERANKER_THRESHOLD
+            )
             for name in await knowledge_sources()
         ],
-    }
-    sent_at = time.time()
-    response = await search_http.post(
-        f"/knowledgebases('{KNOWLEDGE_BASE}')/retrieve", json=body, headers=await search_headers()
     )
+    sent_at = time.time()
+    result = await retrieval_client.retrieve(request)
     received_at = time.time()
-    response.raise_for_status()
-    result = response.json()
-    extracted = json.loads(result["response"][0]["content"][0]["text"]) if result.get("response") else []
-    scores = {str(ref["id"]): ref.get("rerankerScore") for ref in result.get("references", [])}
+    extracted = json.loads(result.response[0].content[0].text) if result.response else []
+    scores = {str(ref.id): ref.reranker_score for ref in result.references or []}
     evidence = [
         {
             "id": str(item["ref_id"]),
@@ -156,7 +149,8 @@ async def search_knowledge(
         }
         for item in extracted
     ]
-    return {"evidence": evidence, "activity": describe_activity(result.get("activity", []), sent_at, received_at)}
+    activity = [entry.as_dict() for entry in result.activity or []]
+    return {"evidence": evidence, "activity": describe_activity(activity, sent_at, received_at)}
 
 
 async def main() -> None:
@@ -176,7 +170,8 @@ async def main() -> None:
     try:
         await server.run_async()
     finally:
-        await search_http.aclose()
+        await retrieval_client.close()
+        await index_client.close()
         await credential.close()
 
 

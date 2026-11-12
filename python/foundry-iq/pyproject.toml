@@ -9,7 +9,8 @@ dependencies = [
     "agent-framework-openai>=1.16.0",
     "agent-framework-foundry-hosting>=1.0.0b260813",
     "azure-identity>=1.25.3",
-    "httpx>=0.28.1",
+    "aiohttp>=3.13.0",
+    "azure-search-documents @ https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-python/pypi/download/azure-search-documents/12.1a20261027002/azure_search_documents-12.1.0a20261027002-py3-none-any.whl#sha256=95d6cbb39f0eeee8990a41cf149baac6c0e97f792c2c600d4db382a5c4d348c6",
 ]
 
 [tool.uv]
