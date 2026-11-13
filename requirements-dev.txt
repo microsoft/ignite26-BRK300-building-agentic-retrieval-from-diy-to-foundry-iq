@@ -1,5 +1,5 @@
 -r app/requirements.txt
 openai==3.15.0
-pytest==8.4.2
-pytest-playwright==0.7.1
-requests==2.32.5
+pytest==9.0.3
+pytest-playwright==0.10.0
+requests==2.33.0
