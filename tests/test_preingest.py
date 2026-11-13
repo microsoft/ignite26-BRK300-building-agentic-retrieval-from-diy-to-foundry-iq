@@ -9,8 +9,6 @@ from azure.core.exceptions import HttpResponseError, ResourceExistsError
 
 from app.config import Settings
 from scripts.preingest import (
-    ENGINEERING_PRACTICE_CORPUS,
-    build_combined_index,
     build_indexer_payloads,
     ingest_corpora,
     ingest_with_retry,
@@ -43,8 +41,9 @@ class IngestCorpusTests(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as directory:
             corpus_dir = Path(directory)
+            (corpus_dir / "quality").mkdir()
             (corpus_dir / "existing.pdf").write_bytes(b"existing")
-            (corpus_dir / "new.pdf").write_bytes(b"new")
+            (corpus_dir / "quality" / "new.pdf").write_bytes(b"new")
             (corpus_dir / "notes.txt").write_text("ignored")
 
             result = sync_blob_corpus(container, corpus_dir)
@@ -84,39 +83,24 @@ class IngestCorpusTests(unittest.TestCase):
         self.assertIsInstance(skillset["knowledgeStore"]["projections"], list)
         self.assertEqual(
             skillset["knowledgeStore"]["projections"][0]["files"][0]["storageContainer"],
-            "extracted-images",
+            "cocoarynth-images",
         )
-        self.assertEqual(pipeline["indexers"][1]["targetIndexName"], "cocoarynth-documents-index")
+        self.assertEqual(pipeline["datasources"][1]["container"]["name"], "cocoarynth")
+        self.assertEqual(pipeline["indexers"][1]["targetIndexName"], "cocoarynth-all-index")
 
-        style_pipeline = build_indexer_payloads(
-            settings,
-            "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/store",
-            "https://example.services.ai.azure.com",
-            ENGINEERING_PRACTICE_CORPUS,
-        )
-        self.assertEqual(style_pipeline["datasources"][1]["container"]["name"], "engineering-practices")
-        self.assertEqual(style_pipeline["indexers"][1]["targetIndexName"], "cocoarynth-engineering-practices-index")
-        self.assertEqual(
-            style_pipeline["skillsets"][1]["knowledgeStore"]["projections"][0]["files"][0][
-                "storageContainer"
-            ],
-            "engineering-practice-images",
-        )
 
-    @patch("scripts.preingest.build_combined_index", return_value=103)
     @patch("scripts.preingest.wait_for_indexer", return_value=12)
     @patch("scripts.preingest.put_preview_resource")
     @patch("scripts.preingest.SearchIndexerClient")
     @patch("scripts.preingest.clear_index_documents", return_value=4)
     @patch("scripts.preingest.sync_blob_corpus")
-    def test_ingestion_indexes_all_corpora_before_creating_knowledge_base(
+    def test_ingestion_indexes_one_corpus_before_creating_knowledge_base(
         self,
         sync_corpus: Mock,
         clear_documents: Mock,
         indexer_client_type: Mock,
         put_resource: Mock,
         wait: Mock,
-        build_combined: Mock,
     ) -> None:
         sync_corpus.return_value = {"uploaded": ["one.pdf"], "skipped": [], "deleted": []}
         service = Mock()
@@ -139,32 +123,12 @@ class IngestCorpusTests(unittest.TestCase):
         )
 
         service.create_knowledge_base.assert_called_once_with()
-        build_combined.assert_called_once_with(service)
-        self.assertEqual(result["combined"]["indexedItems"], 103)
-        self.assertEqual(result["documents"]["indexedItems"], 12)
-        self.assertEqual(result["engineeringPractices"]["removedChunks"], 4)
-        cocoarynth = [
-            "cocoarynth-origins",
-            "cocoarynth-quality",
-            "cocoarynth-logistics-retail",
-            "cocoarynth-policies",
-        ]
-        self.assertEqual(result["cocoarynth-origins"]["indexedItems"], 12)
-        self.assertEqual(put_resource.call_count, 18)
-        self.assertEqual(indexer_client_type.return_value.run_indexer.call_count, 6)
-        self.assertEqual(wait.call_count, 6)
-        self.assertEqual(
-            [call.args[0] for call in blob_service.get_container_client.call_args_list],
-            ["knowledge", "engineering-practices", *cocoarynth],
-        )
-        self.assertEqual(
-            [call.args[1] for call in clear_documents.call_args_list],
-            [
-                "cocoarynth-documents-index",
-                "cocoarynth-engineering-practices-index",
-                *[f"{name}-index" for name in cocoarynth],
-            ],
-        )
+        self.assertEqual(result["indexedItems"], 12)
+        self.assertEqual(result["removedChunks"], 4)
+        self.assertEqual(put_resource.call_count, 3)
+        indexer_client_type.return_value.run_indexer.assert_called_once()
+        blob_service.get_container_client.assert_called_once_with("cocoarynth")
+        clear_documents.assert_called_once_with(service, "cocoarynth-all-index")
 
     @patch("scripts.preingest.time.sleep")
     def test_retries_while_search_rbac_propagates(self, sleep: Mock) -> None:
@@ -177,47 +141,6 @@ class IngestCorpusTests(unittest.TestCase):
         self.assertEqual(result, {"uploaded": [], "skipped": []})
         sleep.assert_called_once_with(1)
 
-
-class CombinedIndexTests(unittest.TestCase):
-    @patch("scripts.preingest.clear_index_documents", return_value=0)
-    @patch("scripts.preingest.embed_texts")
-    @patch("scripts.preingest.SearchClient")
-    def test_copies_cocoarynth_chunks_with_new_vectors(
-        self, search_client_type: Mock, embed: Mock, clear_documents: Mock
-    ) -> None:
-        chunk = {
-            "chunk_id": "c1",
-            "parent_id": "p1",
-            "title": "hold-notice-mg26-l02.pdf",
-            "blob_path": "https://example/hold-notice-mg26-l02.pdf",
-            "chunk": "Lot MG26-L02 held at 8.6% moisture.",
-            "page_number_from": 1,
-            "page_number_to": 1,
-            "image_path": None,
-        }
-        source = Mock()
-        source.search.return_value = [{**chunk, "@search.score": 1.0}]
-        target = Mock()
-        search_client_type.side_effect = [target, source, source, source, source]
-        embed.return_value = [[0.1, 0.2]]
-        service = Mock()
-
-        copied = build_combined_index(service)
-
-        self.assertEqual(copied, 4)
-        self.assertEqual(
-            [call.args[1] for call in search_client_type.call_args_list],
-            [
-                "cocoarynth-all-index",
-                "cocoarynth-origins-index",
-                "cocoarynth-quality-index",
-                "cocoarynth-logistics-retail-index",
-                "cocoarynth-policies-index",
-            ],
-        )
-        clear_documents.assert_called_once_with(service, "cocoarynth-all-index")
-        uploaded = target.upload_documents.call_args.kwargs["documents"]
-        self.assertEqual(uploaded, [{**chunk, "text_vector": [0.1, 0.2]}])
 
 
 if __name__ == "__main__":

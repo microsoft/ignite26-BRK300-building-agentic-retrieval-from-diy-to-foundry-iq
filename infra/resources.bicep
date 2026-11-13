@@ -36,13 +36,6 @@ var cognitiveServicesUserRoleId = 'a97b65f3-24c7-4388-baec-2e87135dc908'
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 var storageBlobDataContributorRoleId = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
 var storageBlobDataReaderRoleId = '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
-var cocoarynthCorpora = [
-  'cocoarynth-origins'
-  'cocoarynth-quality'
-  'cocoarynth-logistics-retail'
-  'cocoarynth-policies'
-]
-var cocoarynthContainerNames = flatten(map(cocoarynthCorpora, name => [name, '${name}-images']))
 var azureAiUserRoleId = '53ca6127-db72-4b80-b1b0-d745d6d5456d'
 var azureAiProjectManagerRoleId = 'eadc314b-1a2d-4efa-be10-5d325db5065e'
 
@@ -248,40 +241,20 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-01-01'
   parent: storage
   name: 'default'
 
-  resource corpusContainer 'containers' = {
-    name: 'knowledge'
+  // Every Cocoarynth PDF, and the images Content Understanding extracts from them.
+  resource cocoarynthContainer 'containers' = {
+    name: 'cocoarynth'
     properties: {
       publicAccess: 'None'
     }
   }
 
-  resource extractedImagesContainer 'containers' = {
-    name: 'extracted-images'
+  resource cocoarynthImagesContainer 'containers' = {
+    name: 'cocoarynth-images'
     properties: {
       publicAccess: 'None'
     }
   }
-
-  resource styleGuideContainer 'containers' = {
-    name: 'engineering-practices'
-    properties: {
-      publicAccess: 'None'
-    }
-  }
-
-  resource styleGuideImagesContainer 'containers' = {
-    name: 'engineering-practice-images'
-    properties: {
-      publicAccess: 'None'
-    }
-  }
-
-  resource cocoarynthContainers 'containers' = [for name in cocoarynthContainerNames: {
-    name: name
-    properties: {
-      publicAccess: 'None'
-    }
-  }]
 }
 
 resource appSearchServiceContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {

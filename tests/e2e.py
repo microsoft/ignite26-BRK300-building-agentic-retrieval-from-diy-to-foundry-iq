@@ -15,60 +15,36 @@ from playwright.sync_api import Page, Route, expect
 
 from app.config import Settings
 from app.main import app
-from app.naming import KNOWLEDGE_SOURCES, KnowledgeSourceSpec
+from app.naming import KNOWLEDGE_SOURCE
 
 expect.set_options(timeout=10_000)
 
-QUALITY_OVERVIEW = {
-    "container": "cocoarynth-quality",
+SOURCE_DOCUMENTS = {
+    "container": "cocoarynth",
     "documents": [
         {
             "name": "hold-notice-mg26-l02.pdf",
             "size": 31000,
             "lastModified": "2026-09-02T12:00:00+00:00",
-            "url": "/api/sources/quality/documents/content/hold-notice-mg26-l02.pdf",
+            "url": "/api/source/documents/content/hold-notice-mg26-l02.pdf",
+        },
+        {
+            "name": "origin-profile-ghana.pdf",
+            "size": 28000,
+            "lastModified": "2026-08-01T12:00:00+00:00",
+            "url": "/api/source/documents/content/origin-profile-ghana.pdf",
         },
         {
             "name": "tasting-panel-september-2026.pdf",
             "size": 36000,
             "lastModified": "2026-09-30T12:00:00+00:00",
-            "url": "/api/sources/quality/documents/content/tasting-panel-september-2026.pdf",
+            "url": "/api/source/documents/content/tasting-panel-september-2026.pdf",
         },
-    ],
-}
-
-DOCUMENT_OVERVIEW = {
-    "container": "knowledge",
-    "documents": [
-        {
-            "name": "mapayca-markets-traceability-pilot-requirements.pdf",
-            "size": 42000,
-            "lastModified": "2026-09-16T12:00:00+00:00",
-            "url": "/api/sources/documents/documents/content/mapayca-markets-traceability-pilot-requirements.pdf",
-        },
-        {
-            "name": "origin-passport-support-runbook.pdf",
-            "size": 38000,
-            "lastModified": "2026-09-16T12:00:00+00:00",
-            "url": "/api/sources/documents/documents/content/origin-passport-support-runbook.pdf",
-        },
-    ],
-}
-
-ORIGINS_OVERVIEW = {
-    "container": "cocoarynth-origins",
-    "documents": [
-        {
-            "name": "origin-profile-ghana.pdf",
-            "size": 28000,
-            "lastModified": "2026-08-01T12:00:00+00:00",
-            "url": "/api/sources/origins/documents/content/origin-profile-ghana.pdf",
-        }
     ],
 }
 
 QUALITY_CHUNKS = {
-    "index": "cocoarynth-quality-index",
+    "index": "cocoarynth-all-index",
     "document": "hold-notice-mg26-l02.pdf",
     "chunks": [
         {
@@ -108,7 +84,7 @@ RETRIEVAL = {
         {
             "type": "searchIndex",
             "id": 1,
-            "knowledgeSourceName": "cocoarynth-logistics-retail-source",
+            "knowledgeSourceName": "cocoarynth-all-source",
             "count": 1,
             "elapsedMs": 14,
             "searchIndexArguments": {"search": "Madagascar limited edition launch date"},
@@ -116,7 +92,7 @@ RETRIEVAL = {
         {
             "type": "searchIndex",
             "id": 2,
-            "knowledgeSourceName": "cocoarynth-quality-source",
+            "knowledgeSourceName": "cocoarynth-all-source",
             "count": 1,
             "elapsedMs": 11,
             "searchIndexArguments": {"search": "Madagascar lot MG26-L02 hold"},
@@ -148,8 +124,8 @@ RETRIEVAL = {
 }
 
 QUALITY_SEARCH_RESULTS = {
-    "index": "cocoarynth-quality-index",
-    "query": "bean moisture test results on arrival",
+    "index": "cocoarynth-all-index",
+    "query": "bean moisture limit on receipt",
     "matches": [
         {
             **QUALITY_CHUNKS["chunks"][0],
@@ -159,23 +135,6 @@ QUALITY_SEARCH_RESULTS = {
     ],
 }
 
-SOURCE_DOCUMENTS = {"quality": QUALITY_OVERVIEW, "documents": DOCUMENT_OVERVIEW, "origins": ORIGINS_OVERVIEW}
-SOURCE_INDEXES = {source.key: source.index for source in KNOWLEDGE_SOURCES}
-
-
-def knowledge_source_definition(source: KnowledgeSourceSpec) -> dict:
-    return {
-        "name": source.knowledge_source,
-        "kind": "searchIndex",
-        "description": f"{source.name}: {source.description}",
-        "searchIndexParameters": {
-            "searchIndexName": source.index,
-            "semanticConfigurationName": "semantic-configuration",
-            "searchFields": [{"name": "chunk"}],
-            "sourceDataFields": [{"name": "title"}],
-        },
-    }
-
 
 CONFIGURATION = {
     "knowledgeBase": {
@@ -183,8 +142,7 @@ CONFIGURATION = {
         "description": "Cocoarynth chocolate company knowledge",
         "outputMode": "extractiveData",
         "rerankerThreshold": 2.0,
-        "retrievalReasoningEffort": {"kind": "low"},
-        "retrievalInstructions": "Use farms & harvests for origin, farm, fermentation, certification, and bean price records.",
+        "retrievalReasoningEffort": {"kind": "auto"},
         "models": [
             {
                 "kind": "azureOpenAI",
@@ -194,10 +152,20 @@ CONFIGURATION = {
                 },
             }
         ],
-        "knowledgeSources": [{"name": source.knowledge_source} for source in KNOWLEDGE_SOURCES],
+        "knowledgeSources": [{"name": KNOWLEDGE_SOURCE.knowledge_source}],
     },
     "knowledgeSources": [
-knowledge_source_definition(source) for source in KNOWLEDGE_SOURCES
+        {
+            "name": KNOWLEDGE_SOURCE.knowledge_source,
+            "kind": "searchIndex",
+            "description": f"{KNOWLEDGE_SOURCE.name}: {KNOWLEDGE_SOURCE.description}",
+            "searchIndexParameters": {
+                "searchIndexName": KNOWLEDGE_SOURCE.index,
+                "semanticConfigurationName": "semantic-configuration",
+                "searchFields": [{"name": "chunk"}],
+                "sourceDataFields": [{"name": "title"}],
+            },
+        }
     ],
 }
 
@@ -398,23 +366,14 @@ def mock_app_apis(page: Page, live_smoke: bool, document_error: bool = False) ->
         return
 
     def handle_documents(route: Route) -> None:
-        key = route.request.url.split("/api/sources/")[1].split("/")[0]
         if document_error:
             json_response(route, {"detail": "Search inventory is unavailable."}, 503)
         else:
-            json_response(route, SOURCE_DOCUMENTS.get(key, {"container": key, "documents": []}))
+            json_response(route, SOURCE_DOCUMENTS)
 
-    def handle_chunks(route: Route) -> None:
-        key = route.request.url.split("/api/sources/")[1].split("/")[0]
-        json_response(route, {**QUALITY_CHUNKS, "index": SOURCE_INDEXES[key]})
-
-    def handle_search(route: Route) -> None:
-        key = route.request.url.split("/api/sources/")[1].split("/")[0]
-        json_response(route, {**QUALITY_SEARCH_RESULTS, "index": SOURCE_INDEXES[key]})
-
-    page.route(re.compile(r".*/api/sources/[^/]+/documents$"), handle_documents)
-    page.route(re.compile(r".*/api/sources/[^/]+/chunks.*"), handle_chunks)
-    page.route(re.compile(r".*/api/sources/[^/]+/search$"), handle_search)
+    page.route(re.compile(r".*/api/source/documents$"), handle_documents)
+    page.route(re.compile(r".*/api/source/chunks.*"), lambda route: json_response(route, QUALITY_CHUNKS))
+    page.route(re.compile(r".*/api/source/search$"), lambda route: json_response(route, QUALITY_SEARCH_RESULTS))
     page.route(re.compile(r".*/api/knowledge-base$"), lambda route: json_response(route, CONFIGURATION))
     page.route(re.compile(r".*/api/diy/agents$"), lambda route: json_response(route, DIY_AGENTS))
     page.route(re.compile(r".*/api/diy/ask$"), lambda route: json_response(route, DIY_ANSWER))
@@ -452,14 +411,14 @@ def test_header_brand_links_to_home(page: Page, live_server_url: str, live_smoke
     expect(page.locator("#home")).to_have_class(re.compile(r"\bactive\b"))
 
 
-def test_home_links_to_sources_knowledge_base_and_diy_pages(
+def test_home_links_to_source_knowledge_base_and_diy_pages(
     page: Page, live_server_url: str, live_smoke: bool
 ) -> None:
     mock_app_apis(page, live_smoke)
     page.goto(live_server_url)
 
     links = page.locator(".welcome-options h3 a")
-    expect(links).to_have_text(["Knowledge sources", "Knowledge base", "DIY agentic retrieval", "Demos"])
+    expect(links).to_have_text(["Knowledge source", "Knowledge base", "DIY agentic retrieval", "Demos"])
     links.filter(has_text="Knowledge base").click()
     expect(page.locator("#kb-configuration")).to_have_class(re.compile(r"\bactive\b"))
     page.go_back()
@@ -472,38 +431,29 @@ def test_home_links_to_sources_knowledge_base_and_diy_pages(
 
 def test_loads_source_inventory(page: Page, live_server_url: str, live_smoke: bool) -> None:
     mock_app_apis(page, live_smoke)
-    page.goto(f"{live_server_url}sources/quality/documents")
+    page.goto(live_server_url)
+    page.locator(".welcome-options").get_by_role("link", name="Knowledge source").click()
 
-    select = page.locator("#documents-source")
-    expect(select.locator("option")).to_have_text([source.name for source in KNOWLEDGE_SOURCES])
-    expect(select).to_have_value("quality")
-    expect(page.locator("#documents .source-description")).to_contain_text("tasting panels")
+    expect(page).to_have_url(re.compile(r"/source/documents$"))
+    expect(page.locator("#documents .source-name")).to_have_text(KNOWLEDGE_SOURCE.name)
+    expect(page.locator("#documents .source-description")).to_have_text(KNOWLEDGE_SOURCE.description)
+    expect(page.locator("#search .source-name")).to_have_text(KNOWLEDGE_SOURCE.name)
     if live_smoke:
         expect(page.locator("#document-list a").first).to_be_visible()
     else:
         expect(page.locator("#document-list")).to_contain_text("hold-notice-mg26-l02.pdf")
-    expect(page.locator("#document-list a").first).to_have_attribute(
-        "href", re.compile(r"/api/sources/quality/documents/content/")
-    )
-
-
-def test_defaults_to_first_source(page: Page, live_server_url: str, live_smoke: bool) -> None:
-    mock_app_apis(page, live_smoke)
-    page.goto(live_server_url)
-    page.locator(".welcome-options").get_by_role("link", name="Knowledge sources").click()
-
-    expect(page).to_have_url(re.compile(r"/sources/origins/documents$"))
-    expect(page.locator("#documents-source")).to_have_value("origins")
-    if not live_smoke:
         expect(page.locator("#document-list")).to_contain_text("origin-profile-ghana.pdf")
+    expect(page.locator("#document-list a").first).to_have_attribute(
+        "href", re.compile(r"/api/source/documents/content/")
+    )
 
 
 def test_page_permalinks_and_browser_history(page: Page, live_server_url: str, live_smoke: bool) -> None:
     mock_app_apis(page, live_smoke)
     for path, panel_id in {
-        "sources/origins/documents": "documents",
-        "sources/quality/chunks": "chunks",
-        "sources/engineering-practices/search": "search",
+        "source/documents": "documents",
+        "source/chunks": "chunks",
+        "source/search": "search",
         "knowledge-base/configuration": "kb-configuration",
         "knowledge-base/query": "kb-query",
         "diy-agents": "diy-agents",
@@ -513,12 +463,10 @@ def test_page_permalinks_and_browser_history(page: Page, live_server_url: str, l
         expect(page.locator(f"#{panel_id}")).to_have_class(re.compile(r"\bactive\b"))
         expect(page).to_have_url(re.compile(rf"/{path}(\?agent=.*)?$"))
 
-    for path in ("project-requirements", "combined/query", "sources/unknown/documents", "sources/quality/mcp"):
+    for path in ("project-requirements", "combined/query", "sources/quality/documents", "source/mcp"):
         assert requests.get(f"{live_server_url}{path}", timeout=10).status_code == 404
 
-    page.goto(f"{live_server_url}sources/policies/search")
-    expect(page.locator("#search-source")).to_have_value("policies")
-
+    page.goto(f"{live_server_url}source/search")
     page.get_by_role("link", name="Cocoarynth home").click()
     expect(page.locator("#home")).to_have_class(re.compile(r"\bactive\b"))
     page.goto(f"{live_server_url}knowledge-base/query")
@@ -528,40 +476,14 @@ def test_page_permalinks_and_browser_history(page: Page, live_server_url: str, l
     page.go_back()
     page.go_back()
     expect(page.locator("#search")).to_have_class(re.compile(r"\bactive\b"))
-    expect(page).to_have_url(re.compile(r"/sources/policies/search$"))
-
-
-def test_selected_source_persists_across_source_pages(
-    page: Page, live_server_url: str, live_smoke: bool
-) -> None:
-    mock_app_apis(page, live_smoke)
-    page.goto(f"{live_server_url}sources/origins/documents")
-
-    page.locator("#documents-source").select_option(label="Origin Passport")
-    expect(page).to_have_url(re.compile(r"/sources/documents/documents$"))
-    if not live_smoke:
-        expect(page.locator("#document-list")).to_contain_text("mapayca-markets-traceability-pilot-requirements.pdf")
-
-    page.goto(f"{live_server_url}sources/documents/chunks")
-    expect(page).to_have_url(re.compile(r"/sources/documents/chunks$"))
-    expect(page.locator("#chunks-source")).to_have_value("documents")
-
-    page.goto(f"{live_server_url}sources/documents/search")
-    expect(page).to_have_url(re.compile(r"/sources/documents/search$"))
-    expect(page.locator("#search-source")).to_have_value("documents")
-    expect(page.locator("#search-query")).to_have_value("CSV export requirements")
-
-    page.locator("#search-source").select_option(label="Engineering")
-    expect(page).to_have_url(re.compile(r"/sources/engineering-practices/search$"))
-    expect(page.locator("#search-query")).to_have_value("testing review rollout and monitoring standards")
-    expect(page.locator("#documents-source")).to_have_value("engineering-practices")
+    expect(page).to_have_url(re.compile(r"/source/search$"))
 
 
 def test_loads_content_understanding_chunks(page: Page, live_server_url: str, live_smoke: bool) -> None:
     mock_app_apis(page, live_smoke)
     chunk_urls: list[str] = []
     page.on("request", lambda request: chunk_urls.append(request.url) if "/chunks?" in request.url else None)
-    page.goto(f"{live_server_url}sources/quality/chunks")
+    page.goto(f"{live_server_url}source/chunks")
 
     document_select = page.locator("#document-select")
     if live_smoke:
@@ -571,8 +493,8 @@ def test_loads_content_understanding_chunks(page: Page, live_server_url: str, li
     else:
         document_select.select_option(label="hold-notice-mg26-l02.pdf")
         expect(page.locator("#chunk-list")).to_contain_text("Lot MG26-L02 held on arrival")
-        assert any("/api/sources/quality/chunks?document=hold-notice-mg26-l02.pdf" in url for url in chunk_urls)
-    expect(page.locator("#chunk-summary")).to_contain_text("cocoarynth-quality-index")
+        assert any("/api/source/chunks?document=hold-notice-mg26-l02.pdf" in url for url in chunk_urls)
+    expect(page.locator("#chunk-summary")).to_contain_text("cocoarynth-all-index")
     expect(page.locator("#chunk-list")).to_contain_text("page_number_from")
 
 
@@ -582,12 +504,12 @@ def test_runs_hybrid_source_search(page: Page, live_server_url: str, live_smoke:
     page.on(
         "request",
         lambda request: search_requests.append((request.url, request.post_data_json))
-        if "/api/sources/" in request.url and request.url.endswith("/search")
+        if request.url.endswith("/api/source/search")
         else None,
     )
-    page.goto(f"{live_server_url}sources/quality/search")
+    page.goto(f"{live_server_url}source/search")
 
-    expect(page.locator("#search-query")).to_have_value("bean moisture test results on arrival")
+    expect(page.locator("#search-query")).to_have_value("bean moisture limit on receipt")
     page.locator("#search-form").get_by_role("button", name="Search", exact=True).click()
 
     if live_smoke:
@@ -596,9 +518,8 @@ def test_runs_hybrid_source_search(page: Page, live_server_url: str, live_smoke:
         expect(page.locator("#search-results")).to_contain_text("Lot MG26-L02 held on arrival")
         expect(page.locator("#search-results")).to_contain_text("Reranker 3.750")
         expect(page.locator("#search-results")).to_contain_text("Search 0.910")
-    expect(page.locator("#search-summary")).to_contain_text("cocoarynth-quality-index · hybrid semantic + vector")
-    assert search_requests[0][0].endswith("/api/sources/quality/search")
-    assert search_requests[0][1] == {"query": "bean moisture test results on arrival", "limit": 10}
+    expect(page.locator("#search-summary")).to_contain_text("cocoarynth-all-index · hybrid semantic + vector")
+    assert search_requests[0][1] == {"query": "bean moisture limit on receipt", "limit": 10}
 
 
 def test_query_knowledge_base_workflow(page: Page, live_server_url: str, live_smoke: bool) -> None:
@@ -622,9 +543,9 @@ def test_query_knowledge_base_workflow(page: Page, live_server_url: str, live_sm
     output = page.locator("#kb-output")
     expect(output).to_contain_text("Lot MG26-L02 was held on arrival.")
     activity = output.locator(".activity-table")
-    expect(activity).to_contain_text("cocoarynth-logistics-retail-source")
+    expect(activity).to_contain_text("cocoarynth-all-source")
     expect(activity).to_contain_text("Madagascar limited edition launch date")
-    expect(activity).to_contain_text("cocoarynth-quality-source")
+    expect(activity).to_contain_text("Madagascar lot MG26-L02 hold")
     expect(activity).to_contain_text("Result re-ranking")
     references = output.locator(".reference-list")
     expect(references).to_contain_text("launch-plan-madagascar-nibs.pdf")
@@ -645,18 +566,16 @@ def test_displays_knowledge_base_configuration(page: Page, live_server_url: str,
     if not live_smoke:
         facts = configuration.locator(".config-facts").first
         expect(facts).to_contain_text("Reranker threshold2Reasoning")
-        expect(facts).to_contain_text("Reasoninglow")
-        expect(facts).to_contain_text("Use farms & harvests")
+        expect(facts).to_contain_text("Reasoningauto")
         expect(facts).to_contain_text("gpt-5.5")
-    expect(configuration.locator(".source-list > h3")).to_have_text("Knowledge sources · 6")
-    rows = configuration.locator(".source-row")
-    expect(rows.locator("h4")).to_have_text([source.name for source in KNOWLEDGE_SOURCES])
-    for index, source in enumerate(KNOWLEDGE_SOURCES):
-        facts = rows.nth(index).locator(".source-facts")
-        expect(facts).to_contain_text(source.knowledge_source)
-        expect(facts).to_contain_text("KindsearchIndex")
-        expect(facts).to_contain_text(source.index)
-        expect(facts).to_contain_text("semantic-configuration")
+    expect(configuration.locator(".source-list > h3")).to_have_text("Knowledge sources · 1")
+    row = configuration.locator(".source-row")
+    expect(row.locator("h4")).to_have_text(KNOWLEDGE_SOURCE.name)
+    facts = row.locator(".source-facts")
+    expect(facts).to_contain_text(KNOWLEDGE_SOURCE.knowledge_source)
+    expect(facts).to_contain_text("KindsearchIndex")
+    expect(facts).to_contain_text(KNOWLEDGE_SOURCE.index)
+    expect(facts).to_contain_text("semantic-configuration")
 
 
 def test_retrieves_from_knowledge_base(page: Page, live_server_url: str, live_smoke: bool) -> None:

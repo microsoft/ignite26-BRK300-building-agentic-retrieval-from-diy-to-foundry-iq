@@ -30,10 +30,10 @@ TASTING_PANEL = Example(
 MADAGASCAR_PANEL = "What did the tasting panel think of the Madagascar bar, and why was its bean lot held on arrival?"
 MADAGASCAR_ESTATE = "What happened at the estate that delayed the launch of the Madagascar limited-edition bar with cacao nibs?"
 STORAGE_TEMPERATURE = "What is the recommended storage temperature for chocolate bars?"
+# Agentic search issues a follow-up query for this one: the question never names the estate.
+MOISTURE_HARVEST = "Who harvested the beans in the lot that was held for moisture, and what was the weather at that farm during harvest?"
 
-# The steps the portal and scripts.run_diy_agents use. The talk covers one index only, so the multi-source
-# steps in python/ (fan-out, source selection, LLM reranking, and diy-complexity-classifier built on them)
-# aren't listed; their code stays for reference.
+# The steps the portal and scripts.run_diy_agents use.
 DIY_STEPS = (
     DiyStep(
         "diy-baseline",
@@ -70,7 +70,7 @@ DIY_STEPS = (
         ),
     ),
     DiyStep(
-        "foundry-iq",
+        "foundry-iq-mr1-kb",
         "Foundry IQ: minimal + MR1",
         "One call to a Foundry IQ knowledge base with minimal effort: Microsoft Retriever 1 reviews each search and decides whether to search again.",
         8095,
@@ -81,15 +81,20 @@ DIY_STEPS = (
         "Foundry IQ: auto",
         "One call to a Foundry IQ knowledge base with auto effort, which decides how much retrieval each question needs.",
         8096,
-        (Example("Auto: storage temperature", STORAGE_TEMPERATURE),),
+        (
+            Example("First search: storage temperature", STORAGE_TEMPERATURE),
+            Example("MR1: Madagascar estate delay", MADAGASCAR_ESTATE),
+            Example("LLM planner: tasting panel and bean hold", MADAGASCAR_PANEL),
+        ),
     ),
     DiyStep(
-        "foundry-iq-agentic-search",
+        "foundry-iq-mr1-search",
         "Foundry IQ: agentic search",
         "One search call with query_type=\"agentic\" on one index, with no knowledge base: a retrieval model plans queries and reranks results.",
         8097,
         (
             Example("Trail: Madagascar estate delay", MADAGASCAR_ESTATE),
+            Example("Follow-up query: moisture hold harvest", MOISTURE_HARVEST),
             Example("Simple: storage temperature", STORAGE_TEMPERATURE),
         ),
     ),
@@ -119,8 +124,12 @@ DEMOS = (
     _demo("Reflection approach", "diy-reflection", MADAGASCAR_ESTATE),
     _demo("Complexity classifier approach", "diy-complexity-routing", STORAGE_TEMPERATURE),
     _demo("Complexity classifier approach", "diy-complexity-routing", MADAGASCAR_ESTATE),
-    _demo("Foundry IQ knowledge base", "foundry-iq", MADAGASCAR_ESTATE),
+    _demo("Foundry IQ knowledge base", "foundry-iq-mr1-kb", MADAGASCAR_ESTATE),
+    _demo("Foundry IQ agentic search (query_type=agentic)", "foundry-iq-mr1-search", MADAGASCAR_ESTATE),
+    _demo("Foundry IQ agentic search with a follow-up query", "foundry-iq-mr1-search", MOISTURE_HARVEST),
     _demo("Foundry IQ Auto: simple question", "foundry-iq-auto", STORAGE_TEMPERATURE),
+    _demo("Foundry IQ Auto: multi-hop question", "foundry-iq-auto", MADAGASCAR_ESTATE),
+    _demo("Foundry IQ Auto: compound question", "foundry-iq-auto", MADAGASCAR_PANEL),
 )
 AGENT_TIMEOUT_SECONDS = 240
 

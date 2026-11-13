@@ -196,18 +196,6 @@ class DiyRouteTests(unittest.TestCase):
 
 
 class CitedDocumentTests(unittest.TestCase):
-    def test_finds_the_document_in_whichever_container_holds_it(self) -> None:
-        service = Mock()
-        service.download_document.side_effect = [ResourceNotFoundError("missing"), (b"%PDF", "application/pdf")]
-
-        content = find_cited_document(service, "boletas-acopio-rio-claro-2026.pdf")
-
-        self.assertEqual(b"%PDF", content)
-        self.assertEqual(
-            ["cocoarynth-origins", "cocoarynth-quality"],
-            [call.args[1] for call in service.download_document.call_args_list],
-        )
-
     def test_missing_document_returns_404(self) -> None:
         service = Mock()
         service.download_document.side_effect = ResourceNotFoundError("missing")
@@ -216,7 +204,7 @@ class CitedDocumentTests(unittest.TestCase):
             find_cited_document(service, "missing.pdf")
 
         self.assertEqual(404, context.exception.status_code)
-        self.assertEqual(6, service.download_document.call_count)
+        service.download_document.assert_called_once_with("missing.pdf", "cocoarynth")
 
     def test_rejects_paths_and_non_pdf_names(self) -> None:
         request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(service=Mock())))
@@ -252,7 +240,7 @@ class OpenDemoTabsTests(unittest.TestCase):
 
         expected = [(demo.step, demo.question) for demo in DEMOS]
         self.assertEqual("Foundry IQ knowledge base", DEMOS[7].slide)
-        self.assertEqual("foundry-iq", DEMOS[7].step)
+        self.assertEqual("foundry-iq-mr1-kb", DEMOS[7].step)
         self.assertEqual("foundry-iq-auto", DEMOS[-1].step)
         parsed = [parse_qs(urlsplit(url).query) for url in urls]
         self.assertEqual(expected, [(query["agent"][0], query["question"][0]) for query in parsed])

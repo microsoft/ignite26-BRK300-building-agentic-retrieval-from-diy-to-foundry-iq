@@ -15,27 +15,7 @@
             "packageManager": "ms-python.python:pip"
         },
         {
-            "path": "python/diy-multi-source-fanout",
-            "envManager": "ms-python.python:venv",
-            "packageManager": "ms-python.python:pip"
-        },
-        {
-            "path": "python/diy-source-selection",
-            "envManager": "ms-python.python:venv",
-            "packageManager": "ms-python.python:pip"
-        },
-        {
-            "path": "python/diy-llm-reranking",
-            "envManager": "ms-python.python:venv",
-            "packageManager": "ms-python.python:pip"
-        },
-        {
             "path": "python/diy-reflection",
-            "envManager": "ms-python.python:venv",
-            "packageManager": "ms-python.python:pip"
-        },
-        {
-            "path": "python/diy-complexity-classifier",
             "envManager": "ms-python.python:venv",
             "packageManager": "ms-python.python:pip"
         },
@@ -45,7 +25,7 @@
             "packageManager": "ms-python.python:pip"
         },
         {
-            "path": "python/foundry-iq",
+            "path": "python/foundry-iq-mr1-kb",
             "envManager": "ms-python.python:venv",
             "packageManager": "ms-python.python:pip"
         },
@@ -55,7 +35,7 @@
             "packageManager": "ms-python.python:pip"
         },
         {
-            "path": "python/foundry-iq-agentic-search",
+            "path": "python/foundry-iq-mr1-search",
             "envManager": "ms-python.python:venv",
             "packageManager": "ms-python.python:pip"
         }

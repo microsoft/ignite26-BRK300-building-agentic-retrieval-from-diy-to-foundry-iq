@@ -58,74 +58,6 @@ services:
     protocols:
       - protocol: responses
         version: 2.0.0
-  diy-multi-source-fanout:
-    project: python/diy-multi-source-fanout
-    host: azure.ai.agent
-    language: python
-    codeConfiguration:
-      dependencyResolution: remote_build
-      entryPoint: main.py
-      runtime: python_3_13
-    container:
-      resources:
-        cpu: "0.5"
-        memory: 1Gi
-    environmentVariables:
-      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
-        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
-      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
-        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
-    kind: hosted
-    name: diy-multi-source-fanout
-    protocols:
-      - protocol: responses
-        version: 2.0.0
-  diy-source-selection:
-    project: python/diy-source-selection
-    host: azure.ai.agent
-    language: python
-    codeConfiguration:
-      dependencyResolution: remote_build
-      entryPoint: main.py
-      runtime: python_3_13
-    container:
-      resources:
-        cpu: "0.5"
-        memory: 1Gi
-    environmentVariables:
-      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
-        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
-      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
-        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
-    kind: hosted
-    name: diy-source-selection
-    protocols:
-      - protocol: responses
-        version: 2.0.0
-  diy-llm-reranking:
-    project: python/diy-llm-reranking
-    host: azure.ai.agent
-    language: python
-    codeConfiguration:
-      dependencyResolution: remote_build
-      entryPoint: main.py
-      runtime: python_3_13
-    container:
-      resources:
-        cpu: "0.5"
-        memory: 1Gi
-    environmentVariables:
-      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
-        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
-      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
-        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
-      - name: FOUNDRY_DECISION_DEPLOYMENT_NAME
-        value: ${FOUNDRY_DECISION_DEPLOYMENT_NAME}
-    kind: hosted
-    name: diy-llm-reranking
-    protocols:
-      - protocol: responses
-        version: 2.0.0
   diy-reflection:
     project: python/diy-reflection
     host: azure.ai.agent
@@ -147,30 +79,6 @@ services:
         value: ${FOUNDRY_DECISION_DEPLOYMENT_NAME}
     kind: hosted
     name: diy-reflection
-    protocols:
-      - protocol: responses
-        version: 2.0.0
-  diy-complexity-classifier:
-    project: python/diy-complexity-classifier
-    host: azure.ai.agent
-    language: python
-    codeConfiguration:
-      dependencyResolution: remote_build
-      entryPoint: main.py
-      runtime: python_3_13
-    container:
-      resources:
-        cpu: "0.5"
-        memory: 1Gi
-    environmentVariables:
-      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
-        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
-      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
-        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
-      - name: FOUNDRY_DECISION_DEPLOYMENT_NAME
-        value: ${FOUNDRY_DECISION_DEPLOYMENT_NAME}
-    kind: hosted
-    name: diy-complexity-classifier
     protocols:
       - protocol: responses
         version: 2.0.0
@@ -198,8 +106,8 @@ services:
     protocols:
       - protocol: responses
         version: 2.0.0
-  foundry-iq:
-    project: python/foundry-iq
+  foundry-iq-mr1-kb:
+    project: python/foundry-iq-mr1-kb
     host: azure.ai.agent
     language: python
     codeConfiguration:
@@ -216,7 +124,7 @@ services:
       - name: FOUNDRY_IQ_SEARCH_ENDPOINT
         value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
     kind: hosted
-    name: foundry-iq
+    name: foundry-iq-mr1-kb
     protocols:
       - protocol: responses
         version: 2.0.0
@@ -242,8 +150,8 @@ services:
     protocols:
       - protocol: responses
         version: 2.0.0
-  foundry-iq-agentic-search:
-    project: python/foundry-iq-agentic-search
+  foundry-iq-mr1-search:
+    project: python/foundry-iq-mr1-search
     host: azure.ai.agent
     language: python
     codeConfiguration:
@@ -260,7 +168,7 @@ services:
       - name: FOUNDRY_IQ_SEARCH_ENDPOINT
         value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
     kind: hosted
-    name: foundry-iq-agentic-search
+    name: foundry-iq-mr1-search
     protocols:
       - protocol: responses
         version: 2.0.0

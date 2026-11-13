@@ -42,8 +42,7 @@ label { display: block; margin-bottom: 7px; font-size: .78rem; font-weight: 700;
 input, textarea, select { width: 100%; border: 1px solid #aab7ac; border-radius: 4px; padding: .78rem; background: white; color: var(--ink); }
 textarea { resize: vertical; min-height: 92px; }
 input:focus, textarea:focus, select:focus { outline: 3px solid #b98b4266; border-color: var(--green); }
-.source-picker { margin-bottom: 24px; padding: 14px 16px; border: 1px solid var(--line); background: var(--surface); }
-.source-picker select { max-width: 420px; }
+.source-summary { margin-bottom: 24px; padding: 14px 16px; border: 1px solid var(--line); background: var(--surface); }
 .source-description { margin-top: 8px; color: var(--muted); line-height: 1.5; }
 .search-bar { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .kb-search, .diy-form { display: grid; gap: 8px; }

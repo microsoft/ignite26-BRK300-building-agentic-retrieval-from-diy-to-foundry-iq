@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-import httpx2
 from azure.core.exceptions import (
     HttpResponseError,
     ResourceExistsError,
@@ -21,23 +20,15 @@ from azure.search.documents.indexes.models import SearchIndex
 from azure.storage.blob import BlobServiceClient, ContainerClient
 
 from app.config import Settings
-from app.foundry_iq import CHUNK_FIELDS, FoundryIqService
-from app.naming import (
-    COMBINED_INDEX,
-    COMBINED_INDEX_SOURCE_KEYS,
-    KNOWLEDGE_SOURCES_BY_KEY,
-)
+from app.foundry_iq import FoundryIqService
+from app.naming import KNOWLEDGE_SOURCE
 
-DOCUMENT_CORPUS_DIR = Path(__file__).parents[1] / "documents"
-ENGINEERING_PRACTICE_CORPUS_DIR = DOCUMENT_CORPUS_DIR / "engineering-practices"
 SEARCH_API_VERSION = "2026-05-01-preview"
 SEMANTIC_CONFIGURATION = "semantic-configuration"
 VECTOR_PROFILE = "vector-search-profile"
 EMBEDDING_DIMENSIONS = 3072
 INDEXER_POLL_SECONDS = 10
 INDEXER_TIMEOUT = timedelta(minutes=30)
-EMBEDDING_BATCH_SIZE = 16
-EMBEDDING_API_VERSION = "2024-10-21"
 
 
 @dataclass(frozen=True)
@@ -50,58 +41,18 @@ class CorpusSpec:
     description: str
 
 
-def corpus_spec(
-    key: str,
-    source_key: str,
-    directory: Path,
-    extracted_images_container_name: str,
-    description: str,
-) -> CorpusSpec:
-    source = KNOWLEDGE_SOURCES_BY_KEY[source_key]
-    return CorpusSpec(
-        key=key,
-        directory=directory,
-        index_name=source.index,
-        container_name=source.container,
-        extracted_images_container_name=extracted_images_container_name,
-        description=description,
-    )
-
-
-DOCUMENT_CORPUS = corpus_spec(
-    key="documents",
-    source_key="documents",
-    directory=DOCUMENT_CORPUS_DIR,
-    extracted_images_container_name="extracted-images",
-    description="Project requirements, architecture decisions, policies, and support documents.",
+# The four LAB673 folders (farms, quality, shipping and sales, policies) all go into one container and one index.
+COCOARYNTH_CORPUS = CorpusSpec(
+    key="cocoarynth",
+    directory=Path(__file__).parents[1] / "data" / "cocoarynth" / "documents",
+    index_name=KNOWLEDGE_SOURCE.index,
+    container_name=KNOWLEDGE_SOURCE.container,
+    extracted_images_container_name=f"{KNOWLEDGE_SOURCE.container}-images",
+    description="Every Cocoarynth company record: farms, quality, shipping and sales, and policies.",
 )
-ENGINEERING_PRACTICE_CORPUS = corpus_spec(
-    key="engineeringPractices",
-    source_key="engineering-practices",
-    directory=ENGINEERING_PRACTICE_CORPUS_DIR,
-    extracted_images_container_name="engineering-practice-images",
-    description="Cocoarynth engineering, API, frontend, accessibility, and engineering culture guidance.",
-)
-COCOARYNTH_CORPUS_DIR = Path(__file__).parents[1] / "data" / "cocoarynth" / "documents"
-COCOARYNTH_CORPORA = tuple(
-    corpus_spec(
-        key=KNOWLEDGE_SOURCES_BY_KEY[source_key].container,
-        source_key=source_key,
-        directory=COCOARYNTH_CORPUS_DIR / KNOWLEDGE_SOURCES_BY_KEY[source_key].container,
-        extracted_images_container_name=f"{KNOWLEDGE_SOURCES_BY_KEY[source_key].container}-images",
-        description=description,
-    )
-    for source_key, description in (
-        ("origins", "Farm and supplier records, partly in Spanish."),
-        ("quality", "Factory receiving, testing, tasting, and batch records."),
-        ("logistics-retail", "Shipping, carrier, retailer, and sales records."),
-        ("policies", "Company policies, guides, and reference material."),
-    )
-)
-CORPORA = (DOCUMENT_CORPUS, ENGINEERING_PRACTICE_CORPUS, *COCOARYNTH_CORPORA)
 
 
-def build_index(settings: Settings, index_name: str = DOCUMENT_CORPUS.index_name) -> SearchIndex:
+def build_index(settings: Settings, index_name: str = COCOARYNTH_CORPUS.index_name) -> SearchIndex:
     return SearchIndex(
         {
             "name": index_name,
@@ -223,7 +174,7 @@ def build_indexer_payloads(
     settings: Settings,
     storage_resource_id: str,
     foundry_endpoint: str,
-    corpus: CorpusSpec = DOCUMENT_CORPUS,
+    corpus: CorpusSpec = COCOARYNTH_CORPUS,
 ) -> dict[str, tuple[str, dict[str, Any]]]:
     index_name = corpus.index_name
     data_source_name = f"{index_name}-blob-source"
@@ -340,7 +291,8 @@ def build_indexer_payloads(
 
 
 def sync_blob_corpus(container: ContainerClient, corpus_dir: Path) -> dict[str, list[str]]:
-    pdfs = {pdf.name: pdf for pdf in sorted(corpus_dir.glob("*.pdf"))}
+    # Blob names are file names without folders; every PDF name is unique across the folders.
+    pdfs = {pdf.name: pdf for pdf in sorted(corpus_dir.rglob("*.pdf"))}
     if not pdfs:
         raise RuntimeError(f"No PDFs found in {corpus_dir}.")
 
@@ -364,7 +316,7 @@ def sync_blob_corpus(container: ContainerClient, corpus_dir: Path) -> dict[str, 
 
 def clear_index_documents(
     service: FoundryIqService,
-    index_name: str = DOCUMENT_CORPUS.index_name,
+    index_name: str = COCOARYNTH_CORPUS.index_name,
 ) -> int:
     client = SearchClient(
         service.settings.search_endpoint,
@@ -445,7 +397,7 @@ def ingest_corpus(
     container: ContainerClient,
     storage_resource_id: str,
     foundry_endpoint: str,
-    corpus: CorpusSpec = DOCUMENT_CORPUS,
+    corpus: CorpusSpec = COCOARYNTH_CORPUS,
 ) -> dict[str, Any]:
     files = sync_blob_corpus(container, corpus.directory)
     service.index_client.create_or_update_index(build_index(service.settings, corpus.index_name))
@@ -463,76 +415,21 @@ def ingest_corpus(
     return {**files, "removedChunks": removed_chunks, "indexedItems": indexed_items}
 
 
-def embed_texts(settings: Settings, credential: Any, texts: list[str]) -> list[list[float]]:
-    token = credential.get_token("https://cognitiveservices.azure.com/.default").token
-    for attempt in range(8):
-        response = httpx2.post(
-            f"{settings.openai_endpoint}/openai/deployments/{settings.embedding_deployment}/embeddings",
-            params={"api-version": EMBEDDING_API_VERSION},
-            headers={"Authorization": f"Bearer {token}"},
-            json={"input": texts, "dimensions": EMBEDDING_DIMENSIONS},
-            timeout=120,
-        )
-        if response.status_code != 429 or attempt == 7:
-            break
-        time.sleep(float(response.headers.get("retry-after", 2**attempt)))
-    response.raise_for_status()
-    return [item["embedding"] for item in sorted(response.json()["data"], key=lambda item: item["index"])]
-
-
-def build_combined_index(service: FoundryIqService) -> int:
-    """Copy every Cocoarynth chunk into one index, for the strategies that search a single index.
-
-    Copying keeps the chunks identical to the per-source indexes. Vectors aren't retrievable, so each chunk is
-    embedded again with the same model.
-    """
-    service.index_client.create_or_update_index(build_index(service.settings, COMBINED_INDEX))
-    clear_index_documents(service, COMBINED_INDEX)
-    target = SearchClient(service.settings.search_endpoint, COMBINED_INDEX, service.credential)
-    copied = 0
-    try:
-        for source_key in COMBINED_INDEX_SOURCE_KEYS:
-            source = SearchClient(
-                service.settings.search_endpoint, KNOWLEDGE_SOURCES_BY_KEY[source_key].index, service.credential
-            )
-            try:
-                chunks = [
-                    {field: result[field] for field in CHUNK_FIELDS}
-                    for result in source.search("*", select=CHUNK_FIELDS, top=1000)
-                ]
-            finally:
-                source.close()
-            for start in range(0, len(chunks), EMBEDDING_BATCH_SIZE):
-                batch = chunks[start : start + EMBEDDING_BATCH_SIZE]
-                vectors = embed_texts(service.settings, service.credential, [chunk["chunk"] for chunk in batch])
-                target.upload_documents(
-                    documents=[{**chunk, "text_vector": vector} for chunk, vector in zip(batch, vectors)]
-                )
-            copied += len(chunks)
-    finally:
-        target.close()
-    return copied
-
-
 def ingest_corpora(
     service: FoundryIqService,
     blob_service: BlobServiceClient,
     storage_resource_id: str,
     foundry_endpoint: str,
-) -> dict[str, dict[str, Any]]:
-    results = {
-        corpus.key: ingest_corpus(
-            service,
-            blob_service.get_container_client(corpus.container_name),
-            storage_resource_id,
-            foundry_endpoint,
-            corpus,
-        )
-        for corpus in CORPORA
-    }
-    results["combined"] = {"indexedItems": build_combined_index(service)}
+) -> dict[str, Any]:
+    result = ingest_corpus(
+        service,
+        blob_service.get_container_client(COCOARYNTH_CORPUS.container_name),
+        storage_resource_id,
+        foundry_endpoint,
+        COCOARYNTH_CORPUS,
+    )
     service.create_knowledge_base()
-    return results
+    return result
 
 
 def ingest_with_retry(operation: Any, attempts: int = 30, delay_seconds: int = 10) -> dict[str, Any]:
@@ -572,14 +469,11 @@ def main() -> None:
                 os.environ["AZURE_AI_FOUNDRY_ENDPOINT"].rstrip("/"),
             )
         )
-        for corpus in CORPORA:
-            corpus_result = result[corpus.key]
-            print(
-                f"{corpus.key}: {len(corpus_result['uploaded'])} uploaded, "
-                f"{len(corpus_result['skipped'])} unchanged, "
-                f"{corpus_result['indexedItems']} documents processed."
-            )
-        print(f"combined: {result['combined']['indexedItems']} chunks copied into {COMBINED_INDEX}.")
+        print(
+            f"{COCOARYNTH_CORPUS.index_name}: {len(result['uploaded'])} uploaded, "
+            f"{len(result['skipped'])} unchanged, {len(result['deleted'])} deleted, "
+            f"{result['indexedItems']} documents processed."
+        )
     finally:
         blob_service.close()
         service.index_client.close()

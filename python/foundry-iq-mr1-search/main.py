@@ -19,7 +19,7 @@ from azure.search.documents.aio import SearchClient
 from azure.search.documents.models import AgenticSearchOptions
 from pydantic import Field
 
-logger = logging.getLogger("foundry-iq-agentic-search")
+logger = logging.getLogger("foundry-iq-mr1-search")
 
 PROJECT_ENDPOINT = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
 MODEL_DEPLOYMENT_NAME = os.environ["FOUNDRY_MODEL_DEPLOYMENT_NAME"]
@@ -27,7 +27,7 @@ MODEL_DEPLOYMENT_NAME = os.environ["FOUNDRY_MODEL_DEPLOYMENT_NAME"]
 # sets the FOUNDRY_IQ_KB_* settings from .env.mr1; without them the agent uses the project's own service.
 SEARCH_ENDPOINT = os.environ.get("FOUNDRY_IQ_KB_ENDPOINT") or os.environ["FOUNDRY_IQ_SEARCH_ENDPOINT"]
 SEARCH_API_KEY = os.environ.get("FOUNDRY_IQ_KB_API_KEY")
-# The index of every Cocoarynth record on the preview service, the same one the foundry-iq knowledge base uses.
+# The index of every Cocoarynth record on the preview service, the same one the foundry-iq-mr1-kb knowledge base uses.
 INDEX_NAME = os.environ.get("FOUNDRY_IQ_SEARCH_INDEX", "lab673-brk300-all")
 
 credential = (
@@ -99,7 +99,7 @@ async def search_knowledge(
 async def main() -> None:
     agent = Agent(
         client=chat_client,
-        name="foundry-iq-agentic-search",
+        name="foundry-iq-mr1-search",
         instructions="""You answer questions about Cocoarynth Chocolate Works, a bean-to-bar
         chocolate maker, from its company records.
         Always call search_knowledge with the user's full question before answering,

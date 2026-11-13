@@ -11,31 +11,19 @@
             "path": "python/diy-query-planning"
         },
         {
-            "path": "python/diy-multi-source-fanout"
-        },
-        {
-            "path": "python/diy-source-selection"
-        },
-        {
-            "path": "python/diy-llm-reranking"
-        },
-        {
             "path": "python/diy-reflection"
-        },
-        {
-            "path": "python/diy-complexity-classifier"
         },
         {
             "path": "python/diy-complexity-routing"
         },
         {
-            "path": "python/foundry-iq"
+            "path": "python/foundry-iq-mr1-kb"
         },
         {
             "path": "python/foundry-iq-auto"
         },
         {
-            "path": "python/foundry-iq-agentic-search"
+            "path": "python/foundry-iq-mr1-search"
         }
     ],
     "settings": {
@@ -43,7 +31,7 @@
         // Hide the steps under the root folder so each file opens from its own folder.
         "files.exclude": {
             "python/diy-*": true,
-            "python/foundry-iq*": true
+            "python/foundry-iq-mr1-kb*": true
         }
     }
 }

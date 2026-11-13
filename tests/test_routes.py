@@ -10,18 +10,18 @@ from app.main import app, azure_service_error
 
 
 class RouteContractTests(unittest.TestCase):
-    def test_routes_are_read_only_and_source_parameterized(self) -> None:
+    def test_routes_are_read_only(self) -> None:
         routes = {
             (route.path, method)
             for route in app.routes
             for method in getattr(route, "methods", set())
         }
 
-        self.assertIn(("/api/sources", "GET"), routes)
-        self.assertIn(("/api/sources/{key}/documents", "GET"), routes)
-        self.assertIn(("/api/sources/{key}/documents/content/{blob_name:path}", "GET"), routes)
-        self.assertIn(("/api/sources/{key}/chunks", "GET"), routes)
-        self.assertIn(("/api/sources/{key}/search", "POST"), routes)
+        self.assertIn(("/api/source", "GET"), routes)
+        self.assertIn(("/api/source/documents", "GET"), routes)
+        self.assertIn(("/api/source/documents/content/{blob_name:path}", "GET"), routes)
+        self.assertIn(("/api/source/chunks", "GET"), routes)
+        self.assertIn(("/api/source/search", "POST"), routes)
         self.assertIn(("/api/knowledge-base", "GET"), routes)
         self.assertIn(("/api/retrieve", "POST"), routes)
         self.assertNotIn(("/api/documents", "GET"), routes)
@@ -47,35 +47,19 @@ class SourceRouteTests(unittest.TestCase):
         self.service = Mock()
         app.state.service = self.service
 
-    def test_lists_six_sources(self) -> None:
-        response = self.client.get("/api/sources")
+    def test_describes_the_knowledge_source(self) -> None:
+        response = self.client.get("/api/source")
 
         self.assertEqual(response.status_code, 200)
-        sources = response.json()["sources"]
-        self.assertEqual(len(sources), 6)
-        self.assertEqual(
-            sources[0],
-            {
-                "key": "origins",
-                "name": "Farms & harvests",
-                "description": sources[0]["description"],
-                "index": "cocoarynth-origins-index",
-                "knowledgeSource": "cocoarynth-origins-source",
-            },
-        )
-        self.assertIn("partly in Spanish", sources[0]["description"])
+        source = response.json()
+        self.assertEqual(source["name"], "Cocoarynth records")
+        self.assertEqual(source["index"], "cocoarynth-all-index")
+        self.assertEqual(source["knowledgeSource"], "cocoarynth-all-source")
 
-    def test_unknown_source_returns_404(self) -> None:
-        for method, path in (
-            ("GET", "/api/sources/unknown/documents"),
-            ("GET", "/api/sources/unknown/documents/content/a.pdf"),
-            ("GET", "/api/sources/unknown/chunks?document=a.pdf"),
-            ("POST", "/api/sources/unknown/search"),
-            ("GET", "/sources/unknown/documents"),
-        ):
+    def test_unknown_pages_and_non_pdf_documents_return_404(self) -> None:
+        for path in ("/source/unknown", "/api/source/documents/content/notes.txt", "/api/diy/documents/notes.txt"):
             with self.subTest(path=path):
-                response = self.client.request(method, path, json={"query": "moisture"})
-                self.assertEqual(response.status_code, 404)
+                self.assertEqual(self.client.get(path).status_code, 404)
         self.assertEqual(self.service.method_calls, [])
 
     def test_source_routes_use_the_source_container_and_index(self) -> None:
@@ -84,19 +68,16 @@ class SourceRouteTests(unittest.TestCase):
         self.service.search_documents.return_value = {"matches": []}
         self.service.download_document.return_value = (b"%PDF", "application/pdf")
 
-        self.client.get("/api/sources/quality/documents")
-        self.client.get("/api/sources/documents/chunks?document=a.pdf&limit=1000")
-        self.client.post("/api/sources/engineering-practices/search", json={"query": "testing"})
-        response = self.client.get("/api/sources/quality/documents/content/hold.pdf")
+        self.assertEqual(self.client.get("/source/search").status_code, 200)
+        self.client.get("/api/source/documents")
+        self.client.get("/api/source/chunks?document=a.pdf&limit=1000")
+        self.client.post("/api/source/search", json={"query": "moisture"})
+        response = self.client.get("/api/source/documents/content/hold.pdf")
 
-        self.service.list_documents.assert_called_once_with(
-            "cocoarynth-quality", "/api/sources/quality/documents/content"
-        )
-        self.service.list_chunks.assert_called_once_with("cocoarynth-documents-index", "a.pdf", 500)
-        self.service.search_documents.assert_called_once_with(
-            "cocoarynth-engineering-practices-index", "testing", 10
-        )
-        self.service.download_document.assert_called_once_with("hold.pdf", "cocoarynth-quality")
+        self.service.list_documents.assert_called_once_with("cocoarynth", "/api/source/documents/content")
+        self.service.list_chunks.assert_called_once_with("cocoarynth-all-index", "a.pdf", 500)
+        self.service.search_documents.assert_called_once_with("cocoarynth-all-index", "moisture", 10)
+        self.service.download_document.assert_called_once_with("hold.pdf", "cocoarynth")
         self.assertEqual(response.headers["content-type"], "application/pdf")
 
     def test_retrieve_takes_only_a_question(self) -> None:

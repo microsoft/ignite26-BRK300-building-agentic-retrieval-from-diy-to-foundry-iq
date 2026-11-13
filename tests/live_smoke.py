@@ -7,7 +7,7 @@ from openai import OpenAI
 from playwright.sync_api import Page, expect
 
 from app.config import Settings
-from app.naming import KNOWLEDGE_SOURCES
+from app.naming import KNOWLEDGE_SOURCE
 
 expect.set_options(timeout=180_000)
 
@@ -72,25 +72,20 @@ def azure_openai_judge() -> Generator[Judge, None, None]:
     credential.close()
 
 
-def test_sources_live_workflow(page: Page, live_portal_url: str) -> None:
-    page.goto(f"{live_portal_url}sources/documents/documents")
-    sources = page.locator(".nav-group").filter(has_text="Knowledge sources")
+def test_source_live_workflow(page: Page, live_portal_url: str) -> None:
+    page.goto(f"{live_portal_url}source/documents")
+    source = page.locator(".nav-group").filter(has_text="Knowledge source")
 
-    expect(page.locator("#document-list")).to_contain_text(
-        "mapayca-markets-traceability-pilot-requirements.pdf"
-    )
+    expect(page.locator("#document-list")).to_contain_text("hold-notice-mg26-l02.pdf")
 
-    sources.get_by_role("button", name="View document chunks", exact=True).click()
-    page.locator("#document-select").select_option(
-        label="mapayca-markets-traceability-pilot-requirements.pdf"
-    )
+    source.get_by_role("button", name="View document chunks", exact=True).click()
+    page.locator("#document-select").select_option(label="hold-notice-mg26-l02.pdf")
     expect(page.locator("#chunk-list article").first).to_be_visible()
     expect(page.locator("#chunk-list")).to_contain_text("page_number_from")
 
-    sources.get_by_role("button", name="Search the index", exact=True).click()
-    page.locator("#search-source").select_option(label="Quality checks")
+    source.get_by_role("button", name="Search the index", exact=True).click()
     page.locator("#search-form").get_by_role("button", name="Search").click()
-    expect(page.locator("#search-summary")).to_contain_text("cocoarynth-quality-index")
+    expect(page.locator("#search-summary")).to_contain_text(KNOWLEDGE_SOURCE.index)
     expect(page.locator("#search-results article").first).to_be_visible()
 
 
@@ -101,11 +96,11 @@ def test_knowledge_base_live_workflow(page: Page, live_portal_url: str, azure_op
 
     configuration = page.locator("#kb-configuration-details")
     expect(configuration).to_contain_text("cocoarynth-kb-all")
-    expect(configuration.locator(".source-row")).to_have_count(len(KNOWLEDGE_SOURCES))
-    for source in KNOWLEDGE_SOURCES:
-        facts = configuration.locator(".source-row").filter(has_text=source.knowledge_source).locator(".source-facts")
-        expect(facts).to_contain_text("KindsearchIndex")
-        expect(facts).to_contain_text(source.index)
+    expect(configuration.locator(".source-row")).to_have_count(1)
+    facts = configuration.locator(".source-row .source-facts")
+    expect(facts).to_contain_text(KNOWLEDGE_SOURCE.knowledge_source)
+    expect(facts).to_contain_text("KindsearchIndex")
+    expect(facts).to_contain_text(KNOWLEDGE_SOURCE.index)
 
     knowledge_base.get_by_role("button", name="Query knowledge base", exact=True).click()
     page.locator("#kb-query textarea").fill(KNOWLEDGE_BASE_QUESTION)

@@ -24,7 +24,7 @@ from .diy_agents import (
 from .diy_agents import ask as ask_diy_agent
 from .diy_agents import list_steps as list_diy_steps
 from .foundry_iq import FoundryIqService
-from .naming import KNOWLEDGE_SOURCES, KNOWLEDGE_SOURCES_BY_KEY, KnowledgeSourceSpec
+from .naming import KNOWLEDGE_SOURCE
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -124,9 +124,9 @@ async def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
-@app.get("/sources/{key}/{page}", include_in_schema=False)
-async def source_page(key: str, page: str) -> FileResponse:
-    if key not in KNOWLEDGE_SOURCES_BY_KEY or page not in {"documents", "chunks", "search"}:
+@app.get("/source/{page}", include_in_schema=False)
+async def source_page(page: str) -> FileResponse:
+    if page not in {"documents", "chunks", "search"}:
         raise HTTPException(status_code=404, detail="Page not found.")
     return FileResponse(STATIC_DIR / "index.html")
 
@@ -136,37 +136,28 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-def get_source(key: str) -> KnowledgeSourceSpec:
-    source = KNOWLEDGE_SOURCES_BY_KEY.get(key)
-    if source is None:
-        raise HTTPException(status_code=404, detail=f"Unknown knowledge source: {key}")
-    return source
+@app.get("/api/source")
+async def source() -> dict[str, str]:
+    return KNOWLEDGE_SOURCE.as_dict()
 
 
-@app.get("/api/sources")
-async def sources() -> dict[str, Any]:
-    return {"sources": [source.as_dict() for source in KNOWLEDGE_SOURCES]}
-
-
-@app.get("/api/sources/{key}/documents")
-async def source_documents(key: str, request: Request) -> dict[str, Any]:
-    source = get_source(key)
+@app.get("/api/source/documents")
+async def source_documents(request: Request) -> dict[str, Any]:
     return await run_in_threadpool(
         request.app.state.service.list_documents,
-        source.container,
-        f"/api/sources/{source.key}/documents/content",
+        KNOWLEDGE_SOURCE.container,
+        "/api/source/documents/content",
     )
 
 
-@app.get("/api/sources/{key}/documents/content/{blob_name:path}")
-async def source_document_content(key: str, blob_name: str, request: Request) -> Response:
-    source = get_source(key)
+@app.get("/api/source/documents/content/{blob_name:path}")
+async def source_document_content(blob_name: str, request: Request) -> Response:
     if not blob_name.lower().endswith(".pdf"):
         raise HTTPException(status_code=404, detail="Document not found.")
     content, _ = await run_in_threadpool(
         request.app.state.service.download_document,
         blob_name,
-        source.container,
+        KNOWLEDGE_SOURCE.container,
     )
     return Response(
         content=content,
@@ -175,23 +166,21 @@ async def source_document_content(key: str, blob_name: str, request: Request) ->
     )
 
 
-@app.get("/api/sources/{key}/chunks")
-async def source_chunks(key: str, request: Request, document: str, limit: int = 100) -> dict[str, Any]:
-    source = get_source(key)
+@app.get("/api/source/chunks")
+async def source_chunks(request: Request, document: str, limit: int = 100) -> dict[str, Any]:
     return await run_in_threadpool(
         request.app.state.service.list_chunks,
-        source.index,
+        KNOWLEDGE_SOURCE.index,
         document,
         min(limit, 500),
     )
 
 
-@app.post("/api/sources/{key}/search")
-async def search_source(key: str, payload: SearchRequest, request: Request) -> dict[str, Any]:
-    source = get_source(key)
+@app.post("/api/source/search")
+async def search_source(payload: SearchRequest, request: Request) -> dict[str, Any]:
     return await run_in_threadpool(
         request.app.state.service.search_documents,
-        source.index,
+        KNOWLEDGE_SOURCE.index,
         payload.query,
         payload.limit,
     )
@@ -223,13 +212,11 @@ async def diy_ask(payload: DiyAskRequest) -> dict[str, Any]:
 
 
 def find_cited_document(service: FoundryIqService, name: str) -> bytes:
-    for source in KNOWLEDGE_SOURCES:
-        try:
-            content, _ = service.download_document(name, source.container)
-        except ResourceNotFoundError:
-            continue
-        return content
-    raise HTTPException(status_code=404, detail="Document not found.")
+    try:
+        content, _ = service.download_document(name, KNOWLEDGE_SOURCE.container)
+    except ResourceNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Document not found.") from error
+    return content
 
 
 @app.get("/api/diy/documents/{name}")

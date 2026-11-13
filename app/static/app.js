@@ -50,18 +50,9 @@ const panelPaths = {
   demos: "/demos",
 };
 const defaultTitle = document.title;
-const exampleSearches = {
-  origins: "fermentation log for the Madagascar lot",
-  quality: "bean moisture test results on arrival",
-  "logistics-retail": "temperature logger readings during shipment",
-  policies: "recommended storage temperature for chocolate bars",
-  documents: "CSV export requirements",
-  "engineering-practices": "testing review rollout and monitoring standards",
-};
-const sourceState = { sources: [], key: null, documents: new Map(), loadId: 0 };
 
 function panelPath(target) {
-  if (sourcePages.includes(target) && sourceState.key) return `/sources/${sourceState.key}/${target}`;
+  if (sourcePages.includes(target)) return `/source/${target}`;
   if (target === "diy-agents") return diyPath();
   return panelPaths[target] || "/";
 }
@@ -78,20 +69,17 @@ function activatePanel(target, updateHistory = false) {
 }
 
 function parseLocation() {
-  const sourceMatch = window.location.pathname.match(/^\/sources\/([^/]+)\/([^/]+)$/);
-  if (sourceMatch && sourcePages.includes(sourceMatch[2])) return { target: sourceMatch[2], key: sourceMatch[1] };
-  const target = Object.entries(panelPaths).find(([, path]) => path === window.location.pathname)?.[0] || "home";
-  return { target, key: null };
+  const sourceMatch = window.location.pathname.match(/^\/source\/([^/]+)$/);
+  if (sourceMatch && sourcePages.includes(sourceMatch[1])) return sourceMatch[1];
+  return Object.entries(panelPaths).find(([, path]) => path === window.location.pathname)?.[0] || "home";
 }
 
 function activePanelId() {
   return $(".panel.active")?.id;
 }
 
-async function activatePanelFromLocation() {
-  const { target, key } = parseLocation();
-  activatePanel(target);
-  if (key && key !== sourceState.key) await selectSource(key);
+function activatePanelFromLocation() {
+  activatePanel(parseLocation());
 }
 
 $$('.nav-item').forEach((button) => button.addEventListener("click", () => activatePanel(button.dataset.target, true)));
@@ -119,54 +107,14 @@ function renderDocumentList(documents) {
   for (const document of documents) select.add(new Option(document.name, document.name));
 }
 
-async function loadSourceDocuments(key) {
-  const loadId = ++sourceState.loadId;
+async function loadSource() {
   setLoading($("#document-list"), "Loading documents...");
   $("#document-select").replaceChildren(new Option("Loading documents...", ""));
   try {
-    if (!sourceState.documents.has(key)) {
-      const result = await api(`/api/sources/${encodeURIComponent(key)}/documents`);
-      sourceState.documents.set(key, result.documents || []);
-    }
-    if (loadId === sourceState.loadId) renderDocumentList(sourceState.documents.get(key));
-  } catch (error) {
-    if (loadId !== sourceState.loadId) return;
-    $("#document-list").replaceChildren(element("div", "empty-state error", error.message));
-    toast(error.message);
-  }
-}
-
-async function selectSource(key) {
-  const previousKey = sourceState.key;
-  const source = sourceState.sources.find((item) => item.key === key) || sourceState.sources[0];
-  if (!source) return;
-  sourceState.key = source.key;
-  $$(".source-select").forEach((select) => { select.value = source.key; });
-  $$(".source-description").forEach((description) => { description.textContent = source.description; });
-
-  const query = $("#search-query");
-  if (!query.value.trim() || query.value === exampleSearches[previousKey]) query.value = exampleSearches[source.key] || "";
-  $("#chunk-summary").textContent = "";
-  $("#chunk-list").replaceChildren(element("div", "empty-state", "Select a document to inspect its chunks."));
-  $("#search-summary").textContent = "";
-  $("#search-results").replaceChildren(element("div", "empty-state", "Search results will appear here."));
-
-  const panel = activePanelId();
-  if (sourcePages.includes(panel) && window.location.pathname !== panelPath(panel)) {
-    window.history.replaceState({ target: panel }, "", panelPath(panel));
-  }
-  await loadSourceDocuments(source.key);
-}
-
-async function loadSources() {
-  try {
-    const result = await api("/api/sources");
-    sourceState.sources = result.sources;
-    $$(".source-select").forEach((select) => {
-      select.replaceChildren(...result.sources.map((source) => new Option(source.name, source.key)));
-      select.addEventListener("change", (event) => selectSource(event.target.value));
-    });
-    await selectSource(parseLocation().key || result.sources[0]?.key);
+    const [source, result] = await Promise.all([api("/api/source"), api("/api/source/documents")]);
+    $$(".source-name").forEach((name) => { name.textContent = source.name; });
+    $$(".source-description").forEach((description) => { description.textContent = source.description; });
+    renderDocumentList(result.documents || []);
   } catch (error) {
     $("#document-list").replaceChildren(element("div", "empty-state error", error.message));
     toast(error.message);
@@ -184,7 +132,7 @@ $("#document-select").addEventListener("change", async (event) => {
   setLoading(list, "Loading ordered chunks...");
   try {
     const result = await api(
-      `/api/sources/${encodeURIComponent(sourceState.key)}/chunks?document=${encodeURIComponent(documentName)}&limit=500`,
+      `/api/source/chunks?document=${encodeURIComponent(documentName)}&limit=500`,
     );
     $("#chunk-summary").textContent = `${result.chunks.length} chunks · ${result.index}`;
     list.replaceChildren(...result.chunks.map((chunk, index) => renderChunk(chunk, index + 1)));
@@ -230,10 +178,10 @@ $("#search-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const query = $("#search-query").value.trim();
   const results = $("#search-results");
-  if (!query || !sourceState.key) return;
+  if (!query) return;
   setLoading(results, "Running hybrid search...");
   try {
-    const result = await api(`/api/sources/${encodeURIComponent(sourceState.key)}/search`, {
+    const result = await api("/api/source/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, limit: 10 }),
@@ -278,9 +226,9 @@ async function loadConfiguration() {
   const container = $("#kb-configuration-details");
   setLoading(container, "Loading live resource definition...");
   try {
-    const [result, sourceList] = await Promise.all([api("/api/knowledge-base"), api("/api/sources")]);
+    const [result, sourceSpec] = await Promise.all([api("/api/knowledge-base"), api("/api/source")]);
     const sources = new Map(result.knowledgeSources.map((source) => [source.name, source]));
-    const displayNames = new Map(sourceList.sources.map((source) => [source.knowledgeSource, source.name]));
+    const displayNames = new Map([[sourceSpec.knowledgeSource, sourceSpec.name]]);
     const kb = result.knowledgeBase;
     const section = element("section", "configuration-item");
     section.append(element("h3", "", kb.name));
@@ -490,7 +438,7 @@ $("#kb-search").addEventListener("submit", async (event) => {
   const output = $("#kb-output");
   const question = $("textarea", event.currentTarget).value.trim();
   if (!question) return;
-  setLoading(output, "Retrieving from all six knowledge sources...");
+  setLoading(output, "Retrieving from the knowledge base...");
   try {
     const result = await api("/api/retrieve", {
       method: "POST",
@@ -510,7 +458,8 @@ function appendSearchTable(container, searches) {
   for (const search of searches) {
     const row = element("div", "diy-search-row");
     const indexes = search.indexes ? search.indexes.join(", ") : search.index;
-    row.append(element("span", "diy-source", indexes || "—"));
+    const source = search.iteration !== undefined ? `Iteration ${search.iteration}` : indexes;
+    row.append(element("span", "diy-source", source || "—"));
     row.append(element("span", "diy-query", typeof search === "string" ? search : search.query));
     if (search.result_count !== undefined) row.append(element("span", "diy-count", `${search.result_count} results`));
     table.append(row);
@@ -892,5 +841,5 @@ $("#diy-form").addEventListener("submit", async (event) => {
   }
 });
 
-activatePanel(parseLocation().target);
-Promise.all([loadSources(), loadConfiguration(), loadDiySteps()]).catch((error) => toast(error.message));
+activatePanel(parseLocation());
+Promise.all([loadSource(), loadConfiguration(), loadDiySteps()]).catch((error) => toast(error.message));

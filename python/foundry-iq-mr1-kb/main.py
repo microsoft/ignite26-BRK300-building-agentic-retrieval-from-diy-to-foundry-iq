@@ -27,7 +27,7 @@ from azure.search.documents.knowledgebases.models import (
 )
 from pydantic import Field
 
-logger = logging.getLogger("foundry-iq")
+logger = logging.getLogger("foundry-iq-mr1-kb")
 
 PROJECT_ENDPOINT = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
 MODEL_DEPLOYMENT_NAME = os.environ["FOUNDRY_MODEL_DEPLOYMENT_NAME"]
@@ -160,7 +160,7 @@ async def search_knowledge(
 async def main() -> None:
     agent = Agent(
         client=chat_client,
-        name="foundry-iq",
+        name="foundry-iq-mr1-kb",
         instructions="""You answer questions about Cocoarynth Chocolate Works, a bean-to-bar
         chocolate maker, from its company records.
         Always call search_knowledge with the user's full question before answering,

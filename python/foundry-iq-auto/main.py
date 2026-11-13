@@ -35,8 +35,8 @@ MODEL_DEPLOYMENT_NAME = os.environ["FOUNDRY_MODEL_DEPLOYMENT_NAME"]
 # sets the FOUNDRY_IQ_KB_* settings from .env.mr1; without them the agent uses the project's own service.
 SEARCH_ENDPOINT = os.environ.get("FOUNDRY_IQ_KB_ENDPOINT") or os.environ["FOUNDRY_IQ_SEARCH_ENDPOINT"]
 SEARCH_API_KEY = os.environ.get("FOUNDRY_IQ_KB_API_KEY")
-# Auto effort, models: [Microsoft Retriever 1, an Azure OpenAI model], the six Cocoarynth sources.
-KNOWLEDGE_BASE = os.environ.get("FOUNDRY_IQ_KNOWLEDGE_BASE", "lab673-brk300-kb-auto-mr1")
+# Auto effort, models: [Microsoft Retriever 1, an Azure OpenAI model], one index of every Cocoarynth record.
+KNOWLEDGE_BASE = os.environ.get("FOUNDRY_IQ_KNOWLEDGE_BASE", "lab673-brk300-kb-all-auto-mr1")
 
 credential = (
     ManagedIdentityCredential()

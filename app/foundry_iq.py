@@ -1,7 +1,6 @@
 from typing import Any
 
 from azure.core.credentials import TokenCredential
-from azure.core.exceptions import ResourceNotFoundError
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
@@ -26,7 +25,7 @@ from azure.search.documents.models import QueryType, VectorizableTextQuery
 from azure.storage.blob import BlobServiceClient
 
 from .config import Settings
-from .naming import KNOWLEDGE_BASE, KNOWLEDGE_SOURCES, OBSOLETE_KNOWLEDGE_BASES
+from .naming import KNOWLEDGE_BASE, KNOWLEDGE_SOURCE
 
 # Keep only chunks the semantic ranker scores as relevant (0-4 scale). With fewer, cleaner chunks,
 # Microsoft Retriever 1 can tell when evidence is missing and search again.
@@ -127,28 +126,27 @@ class FoundryIqService:
         return {"index": index_name, "query": query, "matches": matches}
 
     def create_knowledge_base(self) -> dict[str, Any]:
-        for spec in KNOWLEDGE_SOURCES:
-            self.index_client.create_or_update_knowledge_source(
-                SearchIndexKnowledgeSource(
-                    name=spec.knowledge_source,
-                    description=f"{spec.name}: {spec.description}",
-                    search_index_parameters=SearchIndexKnowledgeSourceParameters(
-                        search_index_name=spec.index,
-                        source_data_fields=[
-                            SearchIndexFieldReference(name=field_name)
-                            for field_name in SOURCE_DATA_FIELDS
-                        ],
-                        search_fields=[SearchIndexFieldReference(name="chunk")],
-                        semantic_configuration_name="semantic-configuration",
-                    ),
-                )
+        spec = KNOWLEDGE_SOURCE
+        self.index_client.create_or_update_knowledge_source(
+            SearchIndexKnowledgeSource(
+                name=spec.knowledge_source,
+                description=f"{spec.name}: {spec.description}",
+                search_index_parameters=SearchIndexKnowledgeSourceParameters(
+                    search_index_name=spec.index,
+                    source_data_fields=[
+                        SearchIndexFieldReference(name=field_name) for field_name in SOURCE_DATA_FIELDS
+                    ],
+                    search_fields=[SearchIndexFieldReference(name="chunk")],
+                    semantic_configuration_name="semantic-configuration",
+                ),
             )
+        )
 
         knowledge_base = KnowledgeBase(
             name=KNOWLEDGE_BASE,
             description=(
                 "Cocoarynth chocolate company knowledge: farms and harvests, quality checks, shipping and sales, "
-                "company policies, the Origin Passport software project, and engineering guidance"
+                "and company policies"
             ),
             models=[
                 KnowledgeBaseAzureOpenAIModel(
@@ -158,42 +156,23 @@ class FoundryIqService:
                     )
                 )
             ],
-            knowledge_sources=[
-                KnowledgeSourceReference(name=spec.knowledge_source) for spec in KNOWLEDGE_SOURCES
-            ],
+            knowledge_sources=[KnowledgeSourceReference(name=spec.knowledge_source)],
             retrieval_reasoning_effort=KnowledgeRetrievalAutoReasoningEffort(),
             output_mode=KnowledgeRetrievalOutputMode.EXTRACTIVE_DATA,
-            retrieval_instructions=(
-                "Use farms & harvests for origin, farm, fermentation, certification, and bean price records. "
-                "Use quality checks for bean receiving, holds, lab results, tasting panels, and batch records. "
-                "Use shipping & sales for shipments, carrier incidents, retailers, launches, and sales. "
-                "Use policies for company rules, specifications, processes, and reference material. "
-                "Use Origin Passport for the traceability software project, and engineering for software "
-                "engineering guidance. Search several sources when a question spans them, and cite factual claims."
-            ),
         )
         self.index_client.create_or_update_knowledge_base(knowledge_base)
-
-        for name in OBSOLETE_KNOWLEDGE_BASES:
-            try:
-                self.index_client.delete_knowledge_base(name)
-            except ResourceNotFoundError:
-                pass
         return {
             "knowledgeBase": KNOWLEDGE_BASE,
-            "knowledgeSources": [spec.knowledge_source for spec in KNOWLEDGE_SOURCES],
+            "knowledgeSources": [spec.knowledge_source],
         }
 
     def get_knowledge_base_configuration(self) -> dict[str, Any]:
         knowledge_base = self.index_client.get_knowledge_base(KNOWLEDGE_BASE).as_dict()
         knowledge_base["rerankerThreshold"] = RERANKER_THRESHOLD
-        knowledge_sources = [
-            self._redact_secrets(self.index_client.get_knowledge_source(spec.knowledge_source).as_dict())
-            for spec in KNOWLEDGE_SOURCES
-        ]
+        knowledge_source = self.index_client.get_knowledge_source(KNOWLEDGE_SOURCE.knowledge_source).as_dict()
         return {
             "knowledgeBase": self._redact_secrets(knowledge_base),
-            "knowledgeSources": knowledge_sources,
+            "knowledgeSources": [self._redact_secrets(knowledge_source)],
         }
 
     def retrieve(self, question: str) -> dict[str, Any]:
@@ -206,12 +185,11 @@ class FoundryIqService:
             ],
             knowledge_source_params=[
                 SearchIndexKnowledgeSourceParams(
-                    knowledge_source_name=spec.knowledge_source,
+                    knowledge_source_name=KNOWLEDGE_SOURCE.knowledge_source,
                     include_references=True,
                     include_reference_source_data=True,
                     reranker_threshold=RERANKER_THRESHOLD,
                 )
-                for spec in KNOWLEDGE_SOURCES
             ],
             include_activity=True,
             output_mode=KnowledgeRetrievalOutputMode.EXTRACTIVE_DATA,

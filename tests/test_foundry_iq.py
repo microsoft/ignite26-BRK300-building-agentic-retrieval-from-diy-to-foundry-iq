@@ -1,13 +1,11 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from azure.core.exceptions import ResourceNotFoundError
 from azure.search.documents.indexes.models import SearchIndexKnowledgeSource
 from azure.search.documents.knowledgebases.models import KnowledgeRetrievalOutputMode
 
 from app.config import Settings
 from app.foundry_iq import FoundryIqService
-from app.naming import KNOWLEDGE_SOURCES
 
 
 class FoundryIqServiceTests(unittest.TestCase):
@@ -25,26 +23,20 @@ class FoundryIqServiceTests(unittest.TestCase):
         self.service.credential = Mock()
         self.service.index_client = Mock()
 
-    def test_creates_six_sources_and_one_knowledge_base(self) -> None:
+    def test_creates_one_source_and_one_knowledge_base(self) -> None:
         result = self.service.create_knowledge_base()
 
         sources = [
             call.args[0] for call in self.service.index_client.create_or_update_knowledge_source.call_args_list
         ]
-        self.assertEqual(len(sources), 6)
-        for source, spec in zip(sources, KNOWLEDGE_SOURCES, strict=True):
-            self.assertIsInstance(source, SearchIndexKnowledgeSource)
-            self.assertEqual(source.name, spec.knowledge_source)
-            self.assertEqual(source.search_index_parameters.search_index_name, spec.index)
-            self.assertEqual(source.search_index_parameters.semantic_configuration_name, "semantic-configuration")
-            self.assertNotIn(
-                "chunk",
-                [field.name for field in source.search_index_parameters.source_data_fields],
-            )
-            self.assertEqual(
-                [field.name for field in source.search_index_parameters.search_fields],
-                ["chunk"],
-            )
+        self.assertEqual(len(sources), 1)
+        source = sources[0]
+        self.assertIsInstance(source, SearchIndexKnowledgeSource)
+        self.assertEqual(source.name, "cocoarynth-all-source")
+        self.assertEqual(source.search_index_parameters.search_index_name, "cocoarynth-all-index")
+        self.assertEqual(source.search_index_parameters.semantic_configuration_name, "semantic-configuration")
+        self.assertNotIn("chunk", [field.name for field in source.search_index_parameters.source_data_fields])
+        self.assertEqual([field.name for field in source.search_index_parameters.search_fields], ["chunk"])
         self.service.index_client.create_or_update_knowledge_base.assert_called_once()
         knowledge_base = self.service.index_client.create_or_update_knowledge_base.call_args.args[0]
         self.assertEqual(knowledge_base.name, "cocoarynth-kb-all")
@@ -52,29 +44,16 @@ class FoundryIqServiceTests(unittest.TestCase):
         self.assertEqual(knowledge_base.retrieval_reasoning_effort.kind, "auto")
         self.assertEqual(
             [reference.name for reference in knowledge_base.knowledge_sources],
-            [spec.knowledge_source for spec in KNOWLEDGE_SOURCES],
+            ["cocoarynth-all-source"],
         )
-        self.assertIn("farms & harvests", knowledge_base.retrieval_instructions)
-        self.assertIn("Origin Passport", knowledge_base.retrieval_instructions)
-        self.assertNotIn("CSV", knowledge_base.retrieval_instructions)
-        self.assertEqual(result["knowledgeBase"], "cocoarynth-kb-all")
-        self.assertEqual(len(result["knowledgeSources"]), 6)
-
-    def test_deletes_obsolete_knowledge_bases_when_present(self) -> None:
-        self.service.index_client.delete_knowledge_base.side_effect = [ResourceNotFoundError("missing"), None]
-
-        self.service.create_knowledge_base()
-
-        self.assertEqual(
-            [call.args[0] for call in self.service.index_client.delete_knowledge_base.call_args_list],
-            ["cocoarynth-kb-docs", "cocoarynth-kb-engineering-practices"],
-        )
+        self.assertIsNone(knowledge_base.retrieval_instructions)
+        self.assertEqual(result, {"knowledgeBase": "cocoarynth-kb-all", "knowledgeSources": ["cocoarynth-all-source"]})
 
     @patch("app.foundry_iq.SearchClient")
     def test_lists_ordered_chunks_for_one_document(self, search_client_type: Mock) -> None:
         search_client_type.return_value.search.return_value = [{"chunk_id": "chunk-1"}]
 
-        result = self.service.list_chunks("cocoarynth-quality-index", "pilot.pdf")
+        result = self.service.list_chunks("cocoarynth-all-index", "pilot.pdf")
 
         self.assertEqual(result["chunks"], [{"chunk_id": "chunk-1"}])
         arguments = search_client_type.return_value.search.call_args.kwargs
@@ -86,14 +65,14 @@ class FoundryIqServiceTests(unittest.TestCase):
 
     @patch("app.foundry_iq.SearchClient")
     def test_lists_chunks_from_the_requested_index(self, search_client_type: Mock) -> None:
-        search_client_type.return_value.search.return_value = [{"chunk_id": "style-chunk-1"}]
+        search_client_type.return_value.search.return_value = [{"chunk_id": "hold-chunk-1"}]
 
-        result = self.service.list_chunks("cocoarynth-engineering-practices-index", "engineering-culture.pdf")
+        result = self.service.list_chunks("cocoarynth-all-index", "quality-hold.pdf")
 
-        self.assertEqual(result["index"], "cocoarynth-engineering-practices-index")
+        self.assertEqual(result["index"], "cocoarynth-all-index")
         search_client_type.assert_called_once_with(
             self.service.settings.search_endpoint,
-            "cocoarynth-engineering-practices-index",
+            "cocoarynth-all-index",
             self.service.credential,
         )
 
@@ -105,7 +84,7 @@ class FoundryIqServiceTests(unittest.TestCase):
             {"chunk_id": "chunk-1", "@search.captions": [caption]}
         ]
 
-        result = self.service.search_documents("cocoarynth-documents-index", "CSV export")
+        result = self.service.search_documents("cocoarynth-all-index", "CSV export")
 
         self.assertEqual(
             result["matches"],
@@ -117,7 +96,7 @@ class FoundryIqServiceTests(unittest.TestCase):
             ],
         )
         arguments = search_client_type.return_value.search.call_args.kwargs
-        self.assertEqual(result["index"], "cocoarynth-documents-index")
+        self.assertEqual(result["index"], "cocoarynth-all-index")
         self.assertEqual(arguments["search_text"], "CSV export")
         self.assertEqual(arguments["vector_queries"][0].text, "CSV export")
         self.assertEqual(arguments["semantic_configuration_name"], "semantic-configuration")
@@ -134,7 +113,7 @@ class FoundryIqServiceTests(unittest.TestCase):
         self.assertTrue(request.include_activity)
         self.assertEqual(
             [source.knowledge_source_name for source in request.knowledge_source_params],
-            [spec.knowledge_source for spec in KNOWLEDGE_SOURCES],
+            ["cocoarynth-all-source"],
         )
         for source in request.knowledge_source_params:
             self.assertEqual(source.reranker_threshold, 2.0)
@@ -157,10 +136,10 @@ class FoundryIqServiceTests(unittest.TestCase):
         self.service.index_client.get_knowledge_base.assert_called_once_with("cocoarynth-kb-all")
         self.assertEqual(
             [call.args[0] for call in self.service.index_client.get_knowledge_source.call_args_list],
-            [spec.knowledge_source for spec in KNOWLEDGE_SOURCES],
+            ["cocoarynth-all-source"],
         )
         self.assertEqual(result["knowledgeBase"]["rerankerThreshold"], 2.0)
-        self.assertEqual(len(result["knowledgeSources"]), 6)
+        self.assertEqual(len(result["knowledgeSources"]), 1)
         self.assertNotIn("mcp", serialized.lower())
         self.assertNotIn("Bearer secret", serialized)
         self.assertNotIn("authentication", serialized)
