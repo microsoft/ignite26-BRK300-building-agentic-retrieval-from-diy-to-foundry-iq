@@ -1,0 +1,43 @@
+{
+    "python-envs.workspaceSearchPaths": [
+        ".venv",
+        "python/*/.venv"
+    ],
+    "python-envs.pythonProjects": [
+        {
+            "path": "python/diy-baseline",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/diy-query-planning",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/diy-reflection",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/diy-complexity-routing",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/foundry-iq-mr1-kb",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/foundry-iq-auto",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "python/foundry-iq-mr1-search",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ]
+}

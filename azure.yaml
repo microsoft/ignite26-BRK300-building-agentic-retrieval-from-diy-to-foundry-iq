@@ -1,0 +1,186 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: agentic-retrieval-diy-to-foundry-iq
+metadata:
+  template: agentic-retrieval-diy-to-foundry-iq@0.0.1
+infra:
+  provider: bicep
+  path: infra
+  module: main
+services:
+  web:
+    project: ./app
+    language: py
+    host: containerapp
+    docker:
+      remoteBuild: true
+  diy-baseline:
+    project: python/diy-baseline
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: diy-baseline
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  diy-query-planning:
+    project: python/diy-query-planning
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: diy-query-planning
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  diy-reflection:
+    project: python/diy-reflection
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+      - name: FOUNDRY_DECISION_DEPLOYMENT_NAME
+        value: ${FOUNDRY_DECISION_DEPLOYMENT_NAME}
+    kind: hosted
+    name: diy-reflection
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  diy-complexity-routing:
+    project: python/diy-complexity-routing
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+      - name: FOUNDRY_DECISION_DEPLOYMENT_NAME
+        value: ${FOUNDRY_DECISION_DEPLOYMENT_NAME}
+    kind: hosted
+    name: diy-complexity-routing
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  foundry-iq-mr1-kb:
+    project: python/foundry-iq-mr1-kb
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: foundry-iq-mr1-kb
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  foundry-iq-auto:
+    project: python/foundry-iq-auto
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: foundry-iq-auto
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  foundry-iq-mr1-search:
+    project: python/foundry-iq-mr1-search
+    host: azure.ai.agent
+    language: python
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    environmentVariables:
+      - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+        value: ${FOUNDRY_MODEL_DEPLOYMENT_NAME}
+      - name: FOUNDRY_IQ_SEARCH_ENDPOINT
+        value: ${FOUNDRY_IQ_SEARCH_ENDPOINT}
+    kind: hosted
+    name: foundry-iq-mr1-search
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+hooks:
+  postprovision:
+    windows:
+      shell: pwsh
+      run: uv run --with-requirements app/requirements.txt python -m scripts.preingest
+      interactive: true
+      continueOnError: false
+    posix:
+      shell: sh
+      run: uv run --with-requirements app/requirements.txt python -m scripts.preingest
+      interactive: true
+      continueOnError: false

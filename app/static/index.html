@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agentic retrieval explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/styles.css?v=22" />
+  </head>
+  <body>
+    <header>
+      <a class="brand-home" href="/" aria-label="Cocoarynth home">
+        <img class="brand-logo" src="/assets/cocoarynth-emblem.png?v=1" alt="" />
+        <span class="brand-name">Cocoarynth</span>
+      </a>
+    </header>
+
+    <main>
+      <aside hidden>
+        <nav aria-label="Knowledge explorer pages">
+          <div class="nav-group">
+            <span class="nav-label">Knowledge source</span>
+            <button class="nav-item" data-target="documents">Browse documents</button>
+            <button class="nav-item" data-target="chunks">View document chunks</button>
+            <button class="nav-item" data-target="search">Search the index</button>
+          </div>
+          <div class="nav-group nav-group-kb">
+            <span class="nav-label">Knowledge base</span>
+            <button class="nav-item" data-target="kb-configuration">Configuration</button>
+            <button class="nav-item" data-target="kb-query">Query knowledge base</button>
+          </div>
+          <div class="nav-group nav-group-diy">
+            <span class="nav-label">DIY agentic retrieval</span>
+            <button class="nav-item" data-target="diy-agents">Ask a DIY agent</button>
+          </div>
+        </nav>
+      </aside>
+
+      <section class="workspace">
+        <div id="home" class="panel active welcome-panel">
+          <div class="panel-heading"><h2>Welcome</h2><p>Choose an area to explore the Cocoarynth knowledge and retrieval agents.</p></div>
+          <div class="welcome-options">
+            <section><h3><a href="/source/documents">Knowledge source</a></h3><p>Browse the Cocoarynth records in the knowledge source, inspect their chunks, or search its index directly.</p></section>
+            <section><h3><a href="/knowledge-base/configuration">Knowledge base</a></h3><p>Inspect the Foundry IQ knowledge base configuration, or query it and see the activity log.</p></section>
+            <section><h3><a href="/diy-agents">DIY agentic retrieval</a></h3><p>Ask the Agent Framework agents that build agentic retrieval step by step, and the Foundry IQ agents, and see each one's activity log.</p></section>
+            <section><h3><a href="/demos">Demos</a></h3><p>Open each talk demo in its own tab, with the agent and question loaded and running.</p></section>
+          </div>
+        </div>
+        <div id="demos" class="panel">
+          <div class="panel-heading"><h2>Demos</h2><p>The demos in slide order. Each link opens a new tab that asks the agent its question right away. To open every demo at once, run <code>python -m scripts.open_demo_tabs</code>.</p></div>
+          <div id="demo-list" class="demo-list"><div class="empty-state">Loading demos...</div></div>
+        </div>
+
+        <div id="documents" class="panel">
+          <div class="panel-heading"><h2>Documents</h2><p>Files in the knowledge source's private Blob container, opened through the application proxy.</p></div>
+          <div class="source-summary"><strong class="source-name">Knowledge source</strong><p class="source-description"></p></div>
+          <div id="document-list" class="document-list" aria-live="polite"><div class="empty-state">Loading documents...</div></div>
+        </div>
+
+        <div id="chunks" class="panel">
+          <div class="panel-heading"><h2>Document chunks</h2><p>Inspect Content Understanding output in page order.</p></div>
+          <div class="source-summary"><strong class="source-name">Knowledge source</strong><p class="source-description"></p></div>
+          <label for="document-select">Document</label>
+          <select id="document-select"><option value="">Select a document</option></select>
+          <div id="chunk-summary" class="result-summary"></div>
+          <div id="chunk-list" class="result-list"><div class="empty-state">Select a document to inspect its chunks.</div></div>
+        </div>
+
+        <div id="search" class="panel">
+          <div class="panel-heading"><h2>Index search</h2><p>Run a hybrid semantic and vector query directly against the knowledge source's chunk index.</p></div>
+          <div class="source-summary"><strong class="source-name">Knowledge source</strong><p class="source-description"></p></div>
+          <form id="search-form" class="search-bar"><input id="search-query" aria-label="Search document chunks" value="bean moisture limit on receipt" /><button class="primary" type="submit">Search</button></form>
+          <div id="search-summary" class="result-summary"></div>
+          <div id="search-results" class="result-list"><div class="empty-state">Search results will appear here.</div></div>
+        </div>
+
+        <div id="kb-configuration" class="panel">
+          <div class="panel-heading"><h2>Knowledge base configuration</h2><p>Inspect the live definition of the knowledge base and its knowledge source.</p></div>
+          <div id="kb-configuration-details" class="configuration-grid"><div class="empty-state">Loading configuration...</div></div>
+        </div>
+
+        <div id="kb-query" class="panel">
+          <div class="panel-heading"><h2>Query knowledge base</h2><p>Retrieve from the knowledge base in one call and see each step in the activity log.</p></div>
+          <form id="kb-search" class="kb-search"><textarea aria-label="Knowledge base question" rows="3">What happened at the estate that delayed the launch of the Madagascar limited-edition bar with cacao nibs?</textarea><button class="primary" type="submit">Query knowledge base</button></form>
+          <div id="kb-output" class="kb-output"><div class="empty-state">The extractive response, evidence, and activity log will appear here.</div></div>
+        </div>
+
+        <div id="diy-agents" class="panel">
+          <form id="diy-form" class="diy-form">
+            <label for="diy-agent">Agent</label>
+            <select id="diy-agent"><option>Loading agents...</option></select>
+            <p id="diy-capability" class="diy-capability"></p>
+            <div id="diy-hint" class="diy-hint" hidden>
+              <p>This agent isn't running. Start the agents from the repository root:</p>
+              <code>python -m scripts.run_diy_agents</code>
+              <button id="diy-refresh" type="button">Check again</button>
+            </div>
+            <label for="diy-question">Question</label>
+            <textarea id="diy-question" rows="3"></textarea>
+            <div class="diy-actions">
+              <button class="primary" type="submit">Ask agent</button>
+            </div>
+          </form>
+          <div id="diy-output" class="kb-output"><div class="empty-state">The answer, activity log, and evidence will appear here.</div></div>
+        </div>
+      </section>
+    </main>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/assets/app.js?v=42"></script>
+  </body>
+</html>

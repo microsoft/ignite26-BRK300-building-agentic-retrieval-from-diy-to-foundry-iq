@@ -1,0 +1,37 @@
+{
+    "folders": [
+        {
+            "name": "brk300 (portal, infra, docs)",
+            "path": "."
+        },
+        {
+            "path": "python/diy-baseline"
+        },
+        {
+            "path": "python/diy-query-planning"
+        },
+        {
+            "path": "python/diy-reflection"
+        },
+        {
+            "path": "python/diy-complexity-routing"
+        },
+        {
+            "path": "python/foundry-iq-mr1-kb"
+        },
+        {
+            "path": "python/foundry-iq-auto"
+        },
+        {
+            "path": "python/foundry-iq-mr1-search"
+        }
+    ],
+    "settings": {
+        // Each step is its own workspace folder so ty and Pylance use that folder's .venv.
+        // Hide the steps under the root folder so each file opens from its own folder.
+        "files.exclude": {
+            "python/diy-*": true,
+            "python/foundry-iq-mr1-kb*": true
+        }
+    }
+}
