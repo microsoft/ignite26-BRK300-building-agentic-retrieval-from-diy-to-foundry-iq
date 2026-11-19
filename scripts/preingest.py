@@ -379,9 +379,10 @@ def wait_for_indexer(
 
 
 def run_indexer_and_wait(client: SearchIndexerClient, indexer_name: str) -> int:
-    client.reset_indexer(indexer_name)
-    started_after = datetime.now(UTC) - timedelta(seconds=5)
+    # Creating an indexer starts a run, and a running indexer can't be reset or run again.
     try:
+        client.reset_indexer(indexer_name)
+        started_after = datetime.now(UTC) - timedelta(seconds=5)
         client.run_indexer(indexer_name)
     except ResourceExistsError:
         print(f"Indexer '{indexer_name}' is already running; waiting before starting a fresh run.")

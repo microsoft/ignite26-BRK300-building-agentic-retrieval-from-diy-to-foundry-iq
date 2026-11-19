@@ -83,7 +83,8 @@ input:focus, textarea:focus, select:focus { outline: 3px solid #b98b4266; border
 .config-details summary { color: var(--green); cursor: pointer; font-size: .76rem; font-weight: 700; }
 pre { max-height: 300px; margin: 8px 0 0; padding: 12px; overflow: auto; color: #efe5d6; background: #2c211b; font: 400 .72rem/1.5 "IBM Plex Mono", monospace; white-space: pre-wrap; }
 .kb-output { display: grid; gap: 20px; margin-top: 22px; }
-.kb-section > h3 { padding-bottom: 8px; border-bottom: 2px solid var(--ink); }
+.kb-section > h3, .diy-question-label { padding-bottom: 8px; border-bottom: 2px solid var(--ink); }
+.diy-question-label { margin-bottom: 0; font-size: 1rem; }
 .evidence-list, .reference-list { display: grid; gap: 8px; margin-top: 10px; }
 .evidence-item { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; border: 1px solid var(--line); background: var(--surface); }
 .evidence-index { padding: 15px 0 0 12px; }
@@ -134,7 +135,7 @@ pre { max-height: 300px; margin: 8px 0 0; padding: 12px; overflow: auto; color: 
 .demo-list em { color: var(--ink); font-style: normal; font-size: .88rem; font-weight: 600; }
 .demo-list span { color: var(--muted); font-size: .88rem; }
 .diy-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.diy-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.diy-metrics { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .diy-metric { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); background: var(--surface); }
 .diy-metric span { color: var(--muted); font: 500 .66rem "IBM Plex Mono", monospace; text-transform: uppercase; }
 .diy-metric strong { font-size: 1.1rem; }

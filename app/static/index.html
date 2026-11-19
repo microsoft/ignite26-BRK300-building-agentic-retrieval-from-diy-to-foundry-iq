@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=22" />
+    <link rel="stylesheet" href="/assets/styles.css?v=24" />
   </head>
   <body>
     <header>
@@ -97,10 +97,10 @@
               <code>python -m scripts.run_diy_agents</code>
               <button id="diy-refresh" type="button">Check again</button>
             </div>
-            <label for="diy-question">Question</label>
+            <label class="diy-question-label" for="diy-question">Question</label>
             <textarea id="diy-question" rows="3"></textarea>
             <div class="diy-actions">
-              <button class="primary" type="submit">Ask agent</button>
+              <button class="primary" type="submit">Ask</button>
             </div>
           </form>
           <div id="diy-output" class="kb-output"><div class="empty-state">The answer, activity log, and evidence will appear here.</div></div>
@@ -108,6 +108,6 @@
       </section>
     </main>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/assets/app.js?v=42"></script>
+    <script src="/assets/app.js?v=53"></script>
   </body>
 </html>

@@ -227,9 +227,14 @@ async def ask(step: DiyStep, question: str) -> dict[str, Any]:
     payload = response.json()
     if payload.get("status") == "failed":
         raise DiyAgentFailedError(step, (payload.get("error") or {}).get("message") or "no error message")
+    summary = summarize_response(payload)
+    # Agent Framework hands a failed tool call back to the model, which answers anyway; treat it as a failure.
+    for call in summary["toolCalls"]:
+        if "error" in call:
+            raise DiyAgentFailedError(step, f"{call['name']} raised an exception ({call['error']}). See the agent's log.")
     return {
         "step": step.name,
         "startedAtMs": started_at_ms,
         "elapsedMs": round((time.perf_counter() - started) * 1000),
-        **summarize_response(payload),
+        **summary,
     }

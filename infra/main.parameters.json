@@ -10,6 +10,15 @@
     },
     "principalId": {
       "value": "${AZURE_PRINCIPAL_ID}"
+    },
+    "searchSku": {
+      "value": "${AZURE_SEARCH_SKU=serverless}"
+    },
+    "searchLocation": {
+      "value": "${AZURE_SEARCH_LOCATION=westcentralus}"
+    },
+    "deployWebApp": {
+      "value": "${DEPLOY_WEB_APP=true}"
     }
   }
 }
