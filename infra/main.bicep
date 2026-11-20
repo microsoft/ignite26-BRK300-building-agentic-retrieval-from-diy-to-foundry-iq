@@ -14,11 +14,18 @@ param location string
   'standard'
   'standard2'
   'standard3'
+  'serverless'
 ])
-param searchSku string = 'standard'
+param searchSku string = 'serverless'
+
+@description('Region for the Foundry IQ search service. It defaults to a region with Microsoft Retriever 1 and agentic search, which can differ from the region of the models.')
+param searchLocation string = 'westcentralus'
 
 @description('Principal that provisions resources and runs ingestion. Passing it explicitly lets azd redeploy role assignments when the deploying identity changes.')
 param principalId string = ''
+
+@description('Deploy the portal as a Container App. Set DEPLOY_WEB_APP=false to provision only what the local demos need.')
+param deployWebApp bool = true
 
 var tags = {
   'azd-env-name': environmentName
@@ -37,6 +44,8 @@ module resources './resources.bicep' = {
     location: location
     principalId: empty(principalId) ? deployer().objectId : principalId
     searchSku: searchSku
+    searchLocation: searchLocation
+    deployWebApp: deployWebApp
     tags: tags
   }
 }

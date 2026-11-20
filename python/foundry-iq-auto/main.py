@@ -94,13 +94,31 @@ def describe_activity(activity: list[dict[str, Any]], sent_at: float, received_a
                 }
             )
         elif entry["type"] == "modelQueryPlanning":
-            searches_again = any(later["type"] == "searchIndex" for later in activity[i + 1 :])
+            # The searches up to the next planning call are the queries this call planned.
+            planned = []
+            decision = "finish"
+            for later in activity[i + 1 :]:
+                if later["type"] == "modelQueryPlanning":
+                    # Auto effort hands off to the next model when this one stops without enough evidence.
+                    if not planned:
+                        decision = f"hand off to {(later.get('model') or {}).get('modelName')}"
+                    break
+                if later["type"] == "searchIndex":
+                    planned.append(
+                        {
+                            "index": later.get("knowledgeSourceName"),
+                            "query": (later.get("searchIndexArguments") or {}).get("search"),
+                        }
+                    )
+            model = (entry.get("model") or {}).get("modelName")
             steps.append(
                 {
-                    "step": "retrieval_decision",
+                    # Microsoft Retriever 1 decides whether to search again; an LLM planner plans the queries.
+                    "step": "retrieval_decision" if model == "microsoft-retriever-1" else "query_planning",
                     **timing,
-                    "model": (entry.get("model") or {}).get("modelName"),
-                    "decision": "search again" if searches_again else "finish",
+                    "model": model,
+                    "decision": "search again" if planned else decision,
+                    "searches": planned,
                     "input_tokens": entry.get("inputTokens"),
                     "output_tokens": entry.get("outputTokens"),
                 }

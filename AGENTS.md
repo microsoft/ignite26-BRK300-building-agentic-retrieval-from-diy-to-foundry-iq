@@ -26,6 +26,8 @@ azd env select
 
 Open <http://127.0.0.1:8000>. Existing shell environment variables override values loaded from `azd`.
 
+The local portal and agents don't need the deployed `web` Container App. To provision only what they need, skipping the app, its user-assigned managed identity, and its role assignments, run `azd env set DEPLOY_WEB_APP false` before `azd provision`.
+
 For a clean restart, stop every listener on the development port before starting Uvicorn again:
 
 ```shell
@@ -95,7 +97,7 @@ Each step logs its activity to the `azd ai agent run` terminal as `INFO:<step-na
 
 #### Ask the agents from the portal
 
-The portal's **DIY agentic retrieval** page (`/diy-agents`) asks any step a question and shows its answer, a latency waterfall (each retrieval step plus the agent's own model calls before and after retrieval, placed by the start times the agents record), the activity log (each tool call, planned and parallel searches by index, reranking, reflection rounds, routing, with timings and token usage), and the evidence it returned. Start all seven agents (the four DIY steps and the three Foundry IQ agents) with one command from the repository root, then start the portal as described above and open <http://127.0.0.1:8000/diy-agents>:
+The portal's **DIY agentic retrieval** page (`/diy-agents`) asks any step a question and shows its answer; the retrieval process, with retrieval time and token metrics, a latency waterfall (each retrieval step, from the first to the last, placed by the start times the agents record; it leaves out the agent's own model calls before and after retrieval, and shows a gap between steps as the agent deciding to search again), and each step (planned and parallel searches by index, reranking, reflection rounds, routing, with timings and token usage); and the returned results. If a tool call fails, the page shows the error instead of the agent's answer. Start all seven agents (the four DIY steps and the three Foundry IQ agents) with one command from the repository root, then start the portal as described above and open <http://127.0.0.1:8000/diy-agents>:
 
 ```shell
 .venv/bin/python -m scripts.run_diy_agents
@@ -111,7 +113,7 @@ The Foundry IQ agents are the same agent as the DIY steps, but `search_knowledge
 - `python/foundry-iq-auto` (port 8096) makes a retrieve call to a knowledge base with auto reasoning effort, Microsoft Retriever 1, and an Azure OpenAI model.
 - `python/foundry-iq-mr1-search` (port 8097) skips the knowledge base: `search_knowledge` makes one `SearchClient.search` call with `query_type="agentic"` on an index (`FOUNDRY_IQ_SEARCH_INDEX`), and reports the subqueries, stop reason, and token usage from `debug="agentic"`.
 
-By default, the knowledge base agents call `cocoarynth-kb-all` and the search agent queries `cocoarynth-all-index`, on the project's search service. Microsoft Retriever 1 needs a search service that supports API version `2026-11-01-preview`, so these agents use a prerelease build of `azure-search-documents`, pinned by URL in their `pyproject.toml`. To point them at another service, set `FOUNDRY_IQ_KB_ENDPOINT`, `FOUNDRY_IQ_KB_API_KEY`, and `FOUNDRY_IQ_KNOWLEDGE_BASE` or `FOUNDRY_IQ_SEARCH_INDEX` in the shell before starting the agents. `scripts.run_diy_agents` can also read them from an ignored `.env.mr1` file; see `FOUNDRY_IQ_TARGETS` in that script.
+By default, the knowledge base agents call `cocoarynth-kb-all` and the search agent queries `cocoarynth-all-index`, on the project's search service. Microsoft Retriever 1 and agentic search need a search service in a supported region with paid Knowledge Retrieval, plus `azure-search-documents` 12.2.0b1 or later. The infrastructure turns on Knowledge Retrieval and, by default, creates a Serverless search service (`AZURE_SEARCH_SKU`) in West Central US (`AZURE_SEARCH_LOCATION`), while the models stay in `AZURE_LOCATION`. Serverless provisions in seconds instead of about 15 minutes for a dedicated tier. A search service can't change region or move to or from Serverless, so changing either setting creates a new service, and `azd provision` re-runs ingestion into it. To point them at another service, set `FOUNDRY_IQ_KB_ENDPOINT`, `FOUNDRY_IQ_KB_API_KEY`, and `FOUNDRY_IQ_KNOWLEDGE_BASE` or `FOUNDRY_IQ_SEARCH_INDEX` in the shell before starting the agents. `scripts.run_diy_agents` can also read them from an ignored `.env.mr1` file; see `FOUNDRY_IQ_TARGETS` in that script.
 
 `diy-complexity-routing` routes with Microsoft-Decision-1 (the `decision-1` deployment, `FOUNDRY_DECISION_DEPLOYMENT_NAME`); set `ROUTER = "chat"` at the top of its `main.py` to route with the chat model instead. Its `ROUTE_CRITERIA` and `AGENTIC_PROBABILITY_THRESHOLD` were measured on simple and multi-hop demo questions; re-measure them if you change the criteria or data.
 

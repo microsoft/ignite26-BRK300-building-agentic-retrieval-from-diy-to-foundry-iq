@@ -32,6 +32,18 @@ class IngestCorpusTests(unittest.TestCase):
         self.assertEqual(wait.call_args_list[0].args, (client, "documents-indexer"))
         self.assertIsNotNone(wait.call_args_list[1].args[2])
 
+    @patch("scripts.preingest.wait_for_indexer", side_effect=[0, 12])
+    def test_waits_when_reset_finds_indexer_running(self, wait: Mock) -> None:
+        client = Mock()
+        client.reset_indexer.side_effect = [ResourceExistsError("Cannot reset while running"), None]
+
+        indexed_items = run_indexer_and_wait(client, "documents-indexer")
+
+        self.assertEqual(indexed_items, 12)
+        self.assertEqual(client.reset_indexer.call_count, 2)
+        client.run_indexer.assert_called_once_with("documents-indexer")
+        self.assertEqual(wait.call_args_list[0].args, (client, "documents-indexer"))
+
     def test_uploads_changed_pdfs_and_removes_stale_blobs(self) -> None:
         container = Mock()
         existing_digest = hashlib.sha256(b"existing").hexdigest()

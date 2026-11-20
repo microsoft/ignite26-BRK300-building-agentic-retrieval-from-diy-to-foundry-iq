@@ -7,6 +7,7 @@ from azure.search.documents.indexes.models import (
     AzureOpenAIVectorizerParameters,
     KnowledgeBase,
     KnowledgeBaseAzureOpenAIModel,
+    KnowledgeBaseMicrosoftRetriever1Model,
     KnowledgeSourceReference,
     SearchIndexFieldReference,
     SearchIndexKnowledgeSource,
@@ -149,6 +150,8 @@ class FoundryIqService:
                 "and company policies"
             ),
             models=[
+                # Microsoft Retriever 1 decides whether to search again; auto effort falls back to the LLM planner.
+                KnowledgeBaseMicrosoftRetriever1Model(),
                 KnowledgeBaseAzureOpenAIModel(
                     azure_open_ai_parameters=self._model_parameters(
                         self.settings.chat_deployment,

@@ -155,6 +155,28 @@ class AskTests(unittest.TestCase):
         ):
             asyncio.run(ask(DIY_STEPS[0], "Which origin won?"))
 
+    def test_tool_error_raises_instead_of_returning_an_answer(self) -> None:
+        response = {
+            "status": "completed",
+            "output": [
+                {"type": "function_call", "call_id": "c", "name": "search_knowledge", "arguments": "{}"},
+                {"type": "function_call_output", "call_id": "c", "output": "Error: Function failed."},
+                {"type": "message", "content": [{"type": "output_text", "text": "I couldn't access the records."}]},
+            ],
+        }
+        original = httpx2.AsyncClient
+
+        def client_with_transport(*args, **kwargs):
+            return original(*args, transport=httpx2.MockTransport(lambda _: httpx2.Response(200, json=response)), **kwargs)
+
+        with (
+            patch("app.diy_agents.httpx2.AsyncClient", side_effect=client_with_transport),
+            self.assertRaisesRegex(
+                DiyAgentFailedError, r"diy-baseline failed: search_knowledge raised an exception \(Error: Function failed\.\)"
+            ),
+        ):
+            asyncio.run(ask(DIY_STEPS[0], "Which origin won?"))
+
 
 class DiyRouteTests(unittest.TestCase):
     def test_routes_are_registered(self) -> None:

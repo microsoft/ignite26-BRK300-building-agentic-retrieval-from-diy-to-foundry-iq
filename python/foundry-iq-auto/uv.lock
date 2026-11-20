@@ -419,22 +419,16 @@ wheels = [
 
 [[package]]
 name = "azure-search-documents"
-version = "12.1.0a20261027002"
-source = { url = "https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-python/pypi/download/azure-search-documents/12.1a20261027002/azure_search_documents-12.1.0a20261027002-py3-none-any.whl" }
+version = "12.2.0b1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "azure-core" },
     { name = "isodate" },
     { name = "typing-extensions" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/e8/df/1b7edd62c37d2cbb9083198cf83d06eac47edfd554ab3311db2761258f5a/azure_search_documents-12.2.0b1.tar.gz", hash = "sha256:06cbad0f1a842b1dfea1f608d69dfd6de13eb7ba79b9dcf4943f63503ea67bc6", size = 781366, upload-time = "2026-11-16T20:01:27.412Z" }
 wheels = [
-    { url = "https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-python/pypi/download/azure-search-documents/12.1a20261027002/azure_search_documents-12.1.0a20261027002-py3-none-any.whl", hash = "sha256:95d6cbb39f0eeee8990a41cf149baac6c0e97f792c2c600d4db382a5c4d348c6" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "azure-core", specifier = ">=1.37.0" },
-    { name = "isodate", specifier = ">=0.6.1" },
-    { name = "typing-extensions", specifier = ">=4.6.0" },
+    { url = "https://files.pythonhosted.org/packages/ad/33/038477c7fb943caf9df6c3c89f3091e3ec3122e2df9a52f2127b69e5e665/azure_search_documents-12.2.0b1-py3-none-any.whl", hash = "sha256:cc7ba35bff9bf9973e3ff35d147feeabdbb12239d03ef2764643929e85074612", size = 588489, upload-time = "2026-11-16T20:01:29.575Z" },
 ]
 
 [[package]]
@@ -771,7 +765,7 @@ requires-dist = [
     { name = "agent-framework-openai", specifier = ">=1.16.0" },
     { name = "aiohttp", specifier = ">=3.13.0" },
     { name = "azure-identity", specifier = ">=1.25.3" },
-    { name = "azure-search-documents", url = "https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-python/pypi/download/azure-search-documents/12.1a20261027002/azure_search_documents-12.1.0a20261027002-py3-none-any.whl" },
+    { name = "azure-search-documents", specifier = "==12.2.0b1" },
 ]
 
 [[package]]

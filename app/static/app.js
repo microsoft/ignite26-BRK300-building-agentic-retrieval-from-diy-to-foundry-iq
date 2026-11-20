@@ -281,7 +281,6 @@ function activityLabel(activity) {
     searchIndex: "Index search",
     agenticReasoning: "Result re-ranking",
     modelAnswerSynthesis: "Answer synthesis",
-    diyToolCall: "Agent calls tool",
     "diy:search": "Search",
     "diy:query_planning": "Query planning",
     "diy:parallel_search": "Parallel search",
@@ -290,7 +289,6 @@ function activityLabel(activity) {
     "diy:reflection": "Reflection",
     "diy:complexity_routing": "Complexity routing",
     "diy:retrieval_decision": "Retrieval decision",
-    "diy:semantic_ranking": "Semantic ranking",
     "diy:agentic_search": "Agentic search",
   })[activity.type] || activity.type || "Activity";
   return activity.round ? `${label} · round ${activity.round}` : label;
@@ -414,11 +412,11 @@ function renderKnowledgeBaseResult(container, result) {
   evidence.append(evidenceList);
 
   const activitySection = element("section", "kb-section");
-  activitySection.append(element("h3", "", `Activity log · ${(result.activity || []).length} steps`));
+  activitySection.append(element("h3", "", `Retrieval process · ${countLabel((result.activity || []).length, "step")}`));
   activitySection.append(renderActivityLog(result.activity || []));
 
   const references = element("section", "kb-section");
-  references.append(element("h3", "", `References · ${(result.references || []).length}`));
+  references.append(element("h3", "", countLabel((result.references || []).length, "returned result")));
   const referenceList = element("div", "reference-list");
   for (const reference of result.references || []) {
     const item = element("article", "reference-item");
@@ -471,21 +469,14 @@ function appendDiyActivityDetails(details, activity) {
   appendActivityFact(details, "Model", activity.model);
   appendActivityFact(details, "Reasoning effort", activity.reasoning_effort);
   switch (activity.type) {
-    case "diyToolCall":
-      appendActivityFact(details, "Tool", activity.name);
-      if (activity.arguments && typeof activity.arguments === "object") {
-        for (const [name, value] of Object.entries(activity.arguments)) appendActivityFact(details, name, value);
-      } else if (activity.arguments) {
-        appendActivityFact(details, "Arguments", String(activity.arguments));
-      }
-      if (activity.error) details.append(element("div", "activity-error", activity.error));
-      break;
     case "diy:search":
       appendActivityFact(details, "Index", activity.index);
       appendActivityFact(details, "Query", activity.query);
       appendActivityFact(details, "Results", activity.result_count);
       break;
     case "diy:query_planning":
+    case "diy:retrieval_decision":
+      appendActivityFact(details, "Decision", activity.decision);
       appendSearchTable(details, activity.searches || activity.queries);
       break;
     case "diy:parallel_search":
@@ -506,12 +497,6 @@ function appendDiyActivityDetails(details, activity) {
       appendActivityFact(details, "Agentic probability", activity.agentic_probability);
       appendActivityFact(details, "Reason", activity.reason);
       break;
-    case "diy:retrieval_decision":
-      appendActivityFact(details, "Decision", activity.decision);
-      break;
-    case "diy:semantic_ranking":
-      appendActivityFact(details, "Ranking tokens", activity.ranking_tokens?.toLocaleString());
-      break;
     case "diy:agentic_search":
       appendActivityFact(details, "Index", activity.index);
       appendActivityFact(details, "Results", activity.result_count);
@@ -523,10 +508,13 @@ function appendDiyActivityDetails(details, activity) {
   }
 }
 
+// The knowledge base reports semantic ranking as one summary entry after its searches, though ranking runs
+// within each search, so the log leaves it out.
+const HIDDEN_DIY_STEPS = new Set(["semantic_ranking"]);
+
 function normalizeDiyActivity(toolCalls) {
-  return toolCalls.flatMap((call) => [
-    { type: "diyToolCall", name: call.name, arguments: call.arguments, error: call.error },
-    ...(call.activity || []).map((entry) => ({
+  return toolCalls.flatMap((call) =>
+    (call.activity || []).filter((entry) => !HIDDEN_DIY_STEPS.has(entry.step)).map((entry) => ({
       ...entry,
       type: `diy:${entry.step}`,
       elapsedMs: entry.elapsed_ms,
@@ -534,7 +522,7 @@ function normalizeDiyActivity(toolCalls) {
       inputTokens: entry.input_tokens,
       outputTokens: entry.output_tokens,
     })),
-  ]);
+  );
 }
 
 function citationLink(name) {
@@ -597,6 +585,10 @@ function diyMetric(label, value) {
   return metric;
 }
 
+function countLabel(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function formatDuration(ms) {
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
@@ -604,11 +596,12 @@ function formatDuration(ms) {
 // Gaps this long between retrieval steps are the agent's own model calls, not retrieval work.
 const AGENT_GAP_MS = 250;
 
-function waterfallSegments(result, activities) {
+// The waterfall covers retrieval only, from the first retrieval step to the last. The agent's model
+// calls before and after retrieval are the same kind of work for every step, so the chart leaves them out.
+function waterfallSegments(activities) {
   const timed = activities.filter((activity) => Number.isFinite(activity.elapsedMs));
   const kindOf = (activity) => (activity.inputTokens ? "llm" : "search");
-  const hasStarts = Number.isFinite(result.startedAtMs) && timed.every((activity) => Number.isFinite(activity.startedAtMs));
-  if (!hasStarts) {
+  if (!timed.every((activity) => Number.isFinite(activity.startedAtMs))) {
     let cursor = 0;
     return timed.map((activity) => {
       const segment = { label: activityLabel(activity), start: cursor, duration: activity.elapsedMs, kind: kindOf(activity) };
@@ -617,32 +610,32 @@ function waterfallSegments(result, activities) {
     });
   }
 
+  const origin = Math.min(...timed.map((activity) => activity.startedAtMs));
   const segments = [];
   let cursor = 0;
   timed.forEach((activity) => {
-    const start = Math.max(0, activity.startedAtMs - result.startedAtMs);
+    const start = activity.startedAtMs - origin;
     if (start - cursor > AGENT_GAP_MS) {
-      const label = segments.length ? "Agent model: decides to search again" : "Agent model: decides to search";
-      segments.push({ label, start: cursor, duration: start - cursor, kind: "agent" });
+      segments.push({ label: "Agent model: decides to search again", start: cursor, duration: start - cursor, kind: "agent" });
     }
     segments.push({ label: activityLabel(activity), start, duration: activity.elapsedMs, kind: kindOf(activity) });
     cursor = Math.max(cursor, start + activity.elapsedMs);
   });
-  if (result.elapsedMs - cursor > AGENT_GAP_MS) {
-    segments.push({ label: "Agent model: writes answer", start: cursor, duration: result.elapsedMs - cursor, kind: "agent" });
-  }
   return segments;
 }
 
-function renderWaterfall(result, activities) {
-  const segments = waterfallSegments(result, activities);
+function retrievalSpanMs(segments) {
+  return Math.max(0, ...segments.map((segment) => segment.start + segment.duration));
+}
+
+function renderWaterfall(segments) {
   if (!segments.length) return null;
-  const span = Math.max(result.elapsedMs || 0, ...segments.map((segment) => segment.start + segment.duration));
+  const span = retrievalSpanMs(segments);
 
   const chart = element("div", "waterfall");
   chart.setAttribute("aria-label", "Latency waterfall");
   const heading = element("div", "waterfall-heading");
-  heading.append(element("strong", "", "Latency waterfall"), element("span", "", `${formatDuration(span)} total`));
+  heading.append(element("strong", "", "Latency waterfall"), element("span", "", `${formatDuration(span)} of retrieval`));
   chart.append(heading);
 
   for (const segment of segments) {
@@ -677,29 +670,28 @@ function renderDiyResult(container, result) {
     if (activity.type === "diy:parallel_search") return sum + (activity.searches?.length || 0);
     return sum;
   }, 0);
-  const agentTokens = (result.agentUsage?.inputTokens || 0) + (result.agentUsage?.outputTokens || 0);
+  const segments = waterfallSegments(activities);
 
   const metrics = element("div", "diy-metrics");
   metrics.append(
-    diyMetric("Total time", `${(result.elapsedMs / 1000).toFixed(1)} s`),
+    diyMetric("Retrieval time", formatDuration(retrievalSpanMs(segments))),
     diyMetric("Searches", String(searchCount)),
     diyMetric("Model calls in retrieval", String(llmSteps.length)),
     diyMetric("Retrieval tokens", retrievalTokens.toLocaleString()),
-    diyMetric("Agent tokens", agentTokens.toLocaleString()),
   );
 
   const answer = element("section", "kb-section");
   answer.append(element("h3", "", "Answer"), renderAnswer(result.answer || "The agent returned no answer."));
 
   const activitySection = element("section", "kb-section");
-  activitySection.append(element("h3", "", `Activity log · ${activities.length} steps`));
-  const waterfall = renderWaterfall(result, activities);
+  activitySection.append(element("h3", "", `Retrieval process · ${countLabel(activities.length, "step")}`), metrics);
+  const waterfall = renderWaterfall(segments);
   if (waterfall) activitySection.append(waterfall);
   activitySection.append(renderActivityLog(activities));
 
   const evidence = (result.toolCalls || []).flatMap((call) => call.evidence || []);
   const evidenceSection = element("section", "kb-section");
-  evidenceSection.append(element("h3", "", `Evidence returned to the agent · ${evidence.length}`));
+  evidenceSection.append(element("h3", "", countLabel(evidence.length, "returned result")));
   const evidenceList = element("div", "reference-list");
   for (const item of evidence) {
     const row = element("article", "reference-item");
@@ -720,7 +712,7 @@ function renderDiyResult(container, result) {
   }
   evidenceSection.append(evidenceList);
 
-  container.replaceChildren(metrics, answer, activitySection, evidenceSection);
+  container.replaceChildren(answer, activitySection, evidenceSection);
 }
 
 const diyState = { steps: [], selected: null, autorun: false };
@@ -826,7 +818,7 @@ $("#diy-form").addEventListener("submit", async (event) => {
   const question = $("#diy-question").value.trim();
   const step = diyState.steps.find((item) => item.name === diyState.selected);
   if (!question || !step) return;
-  setLoading(output, `Asking ${step.name}... multi-step agents can take a minute.`);
+  setLoading(output, "Asking...");
   try {
     const result = await api("/api/diy/ask", {
       method: "POST",

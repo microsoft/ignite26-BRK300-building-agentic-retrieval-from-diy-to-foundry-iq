@@ -81,7 +81,7 @@ This repository contains everything shown in the session:
     .venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
     ```
 
-The Foundry IQ agents call knowledge bases that use Microsoft Retriever 1, which needs a search service that supports API version `2026-11-01-preview`. To point them at your own service and knowledge base, set `FOUNDRY_IQ_KB_ENDPOINT`, `FOUNDRY_IQ_KB_API_KEY`, and `FOUNDRY_IQ_KNOWLEDGE_BASE` before starting the agents. See [AGENTS.md](AGENTS.md) for details and for running the tests.
+The Foundry IQ agents call knowledge bases that use Microsoft Retriever 1, which needs a search service in a supported region with paid Knowledge Retrieval. The infrastructure creates a Serverless search service in West Central US by default, separate from the models' region; to use another region or a dedicated tier, run `azd env set AZURE_SEARCH_LOCATION <region>` or `azd env set AZURE_SEARCH_SKU standard` before `azd provision`. To point them at your own service and knowledge base, set `FOUNDRY_IQ_KB_ENDPOINT`, `FOUNDRY_IQ_KB_API_KEY`, and `FOUNDRY_IQ_KNOWLEDGE_BASE` before starting the agents. See [AGENTS.md](AGENTS.md) for details and for running the tests.
 
 ### 🎯 Learning outcomes
 
@@ -101,9 +101,7 @@ By the end of this session, you will be able to:
 - Azure OpenAI models: gpt-5.5 and text-embedding-3-large
 - Azure Content Understanding
 - Azure Blob Storage
-- Azure Container Apps
 - Azure Developer CLI and Bicep
-- FastAPI
 
 ### 📚 Continue your learning
 

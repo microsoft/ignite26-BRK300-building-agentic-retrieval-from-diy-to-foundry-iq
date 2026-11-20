@@ -4,7 +4,10 @@ param environmentName string
 param location string
 param tags object
 param searchSku string
+param searchLocation string = location
 param principalId string
+@description('Deploy the portal as a Container App, with its user-assigned identity. Local demos don\'t need it.')
+param deployWebApp bool = true
 
 param chatDeployment object = {
   name: 'gpt-5.5'
@@ -30,6 +33,11 @@ param decisionDeployment object = {
 }
 
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
+// A search service can't change region or move to or from Serverless, so those services get their own name.
+var isServerlessSearch = searchSku == 'serverless'
+var searchResourceToken = searchLocation == location && !isServerlessSearch
+  ? resourceToken
+  : toLower(uniqueString(subscription().id, environmentName, searchLocation, searchSku))
 var searchServiceContributorRoleId = '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
 var searchIndexDataContributorRoleId = '8ebe5a00-799e-43f5-93ac-243d3dce84a7'
 var cognitiveServicesUserRoleId = 'a97b65f3-24c7-4388-baec-2e87135dc908'
@@ -82,7 +90,7 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   }
 }
 
-resource appIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+resource appIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (deployWebApp) {
   name: 'id-kb-${resourceToken}'
   location: location
   tags: tags
@@ -173,7 +181,7 @@ resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
       description: 'Hosted agents for the DIY agentic retrieval steps'
     }
     dependsOn: [
-      embedding
+      decision
     ]
   }
 }
@@ -196,9 +204,9 @@ resource provisionerAzureAiProjectManager 'Microsoft.Authorization/roleAssignmen
   }
 }
 
-resource search 'Microsoft.Search/searchServices@2025-05-01' = {
-  name: 'srch-${resourceToken}'
-  location: location
+resource search 'Microsoft.Search/searchServices@2026-09-01-preview' = {
+  name: 'srch-${searchResourceToken}'
+  location: searchLocation
   tags: tags
   identity: {
     type: 'SystemAssigned'
@@ -206,19 +214,28 @@ resource search 'Microsoft.Search/searchServices@2025-05-01' = {
   sku: {
     name: searchSku
   }
-  properties: {
-    authOptions: {
-      aadOrApiKey: {
-        aadAuthFailureMode: 'http401WithBearerChallenge'
+  properties: union(
+    {
+      authOptions: {
+        aadOrApiKey: {
+          aadAuthFailureMode: 'http401WithBearerChallenge'
+        }
       }
-    }
-    disableLocalAuth: false
-    hostingMode: 'Default'
-    partitionCount: 1
-    publicNetworkAccess: 'enabled'
-    replicaCount: 1
-    semanticSearch: 'standard'
-  }
+      disableLocalAuth: false
+      // Microsoft Retriever 1 and the agentic query type have no free tier.
+      knowledgeRetrieval: 'standard'
+      publicNetworkAccess: 'Enabled'
+      semanticSearch: 'standard'
+    },
+    // Serverless scales automatically, so it has no hosting mode, partitions, or replicas.
+    isServerlessSearch
+      ? {}
+      : {
+          hostingMode: 'Default'
+          partitionCount: 1
+          replicaCount: 1
+        }
+  )
 }
 
 resource storage 'Microsoft.Storage/storageAccounts@2025-01-01' = {
@@ -257,21 +274,21 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-01-01'
   }
 }
 
-resource appSearchServiceContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource appSearchServiceContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployWebApp) {
   scope: search
   name: guid(search.id, appIdentity.id, searchServiceContributorRoleId)
   properties: {
-    principalId: appIdentity.properties.principalId
+    principalId: appIdentity!.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', searchServiceContributorRoleId)
   }
 }
 
-resource appSearchIndexDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource appSearchIndexDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployWebApp) {
   scope: search
   name: guid(search.id, appIdentity.id, searchIndexDataContributorRoleId)
   properties: {
-    principalId: appIdentity.properties.principalId
+    principalId: appIdentity!.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', searchIndexDataContributorRoleId)
   }
@@ -324,27 +341,27 @@ resource provisionerStorageBlobContributor 'Microsoft.Authorization/roleAssignme
   }
 }
 
-resource appStorageBlobReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource appStorageBlobReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployWebApp) {
   scope: storage
   name: guid(storage.id, appIdentity.id, storageBlobDataReaderRoleId)
   properties: {
-    principalId: appIdentity.properties.principalId
+    principalId: appIdentity!.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataReaderRoleId)
   }
 }
 
-resource appRegistryPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource appRegistryPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployWebApp) {
   scope: registry
   name: guid(registry.id, appIdentity.id, acrPullRoleId)
   properties: {
-    principalId: appIdentity.properties.principalId
+    principalId: appIdentity!.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleId)
   }
 }
 
-resource web 'Microsoft.App/containerApps@2024-03-01' = {
+resource web 'Microsoft.App/containerApps@2024-03-01' = if (deployWebApp) {
   name: 'ca-kb-${resourceToken}'
   location: location
   tags: union(tags, {
@@ -389,7 +406,7 @@ resource web 'Microsoft.App/containerApps@2024-03-01' = {
             }
             {
               name: 'AZURE_CLIENT_ID'
-              value: appIdentity.properties.clientId
+              value: appIdentity!.properties.clientId
             }
             {
               name: 'FOUNDRY_IQ_SEARCH_ENDPOINT'
@@ -456,7 +473,7 @@ resource web 'Microsoft.App/containerApps@2024-03-01' = {
   ]
 }
 
-output containerAppName string = web.name
+output containerAppName string = deployWebApp ? web!.name : ''
 output containerRegistryEndpoint string = registry.properties.loginServer
 output searchEndpoint string = 'https://${search.name}.search.windows.net'
 output openAiEndpoint string = 'https://${aiAccount.name}.openai.azure.com'
@@ -471,4 +488,4 @@ output contentUnderstandingDeploymentName string = chatDeployment.name
 output contentUnderstandingModelName string = chatDeployment.model
 output storageAccountName string = storage.name
 output storageAccountId string = storage.id
-output webUri string = 'https://${web.properties.configuration.ingress.fqdn}'
+output webUri string = deployWebApp ? 'https://${web!.properties.configuration.ingress.fqdn}' : ''
